@@ -1,0 +1,111 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #0f0f0f;
+  color: #e0e0e0;
+  font-family: 'Courier New', monospace;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+#app {
+  text-align: center;
+  padding: 2rem;
+  max-width: 600px;
+  width: 100%;
+}
+
+h1 {
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  padding-left: 0.3em;
+  color: #666;
+  margin-bottom: 2rem;
+}
+
+#code-display {
+  font-size: 3rem;
+  font-weight: bold;
+  letter-spacing: 0.5em;
+  color: #00ff88;
+  margin: 1.5rem 0;
+  background: #1a1a1a;
+  padding: 1rem;
+  padding-left: calc(1rem + 0.5em);
+  border-radius: 8px;
+  border: 1px solid #333;
+}
+
+#code-display.hidden { display: none; }
+
+#state-display {
+  font-size: 1.5rem;
+  margin: 1rem 0;
+  min-height: 2rem;
+}
+
+#state-display.countdown { color: #ffaa00; }
+#state-display.playing { color: #00ccff; }
+#state-display.ended { color: #ff4444; }
+#state-display.waiting { color: #888; }
+#state-display.disconnected { color: #666; }
+
+#player-count {
+  font-size: 1.1rem;
+  color: #888;
+  margin: 0.5rem 0;
+}
+
+#world {
+  display: block;
+  margin: 1.5rem auto;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  max-width: 100%;
+}
+
+#world.hidden { display: none; }
+
+#timer {
+  font-size: 4rem;
+  font-weight: bold;
+  color: #ffaa00;
+  margin: 1rem 0;
+}
+
+#timer.hidden { display: none; }
+
+#join-info {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: #1a1a1a;
+  border-radius: 8px;
+  border: 1px solid #333;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+#join-info.hidden { display: none; }
+
+#join-code {
+  font-size: 1.3rem;
+  letter-spacing: 0.3em;
+  padding-left: 0.3em;
+  color: #00ff88;
+  margin-top: 0.5rem;
+}
+
+#connection-status {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  font-size: 0.8rem;
+  color: #555;
+}
+
+#connection-status.connected { color: #00ff88; }
+#connection-status.disconnected { color: #ff4444; }
