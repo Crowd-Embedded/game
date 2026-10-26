@@ -1,19 +1,26 @@
-from game.config import GRID_SIZE
+"""Input intent: the server integrates movement, the client only holds a key."""
 
 DIRECTIONS = {
-    "left": (-1, 0),
-    "right": (1, 0),
-    "up": (0, -1),
-    "down": (0, 1),
+    "left": -1.0,
+    "right": 1.0,
+    "stop": 0.0,
+    "noop": None,
 }
 
 
-def moved(position: tuple[int, int], action: str) -> tuple[int, int] | None:
-    delta = DIRECTIONS.get(action)
-    if delta is None:
-        return None
+def direction_for(action: str) -> float | None:
+    """Return the held direction for an action, or None if it is not a direction."""
+    return DIRECTIONS.get(action)
+
+
+def moved(
+    position: tuple[float, float],
+    direction: float,
+    dt: float,
+    speed: float,
+    min_x: float,
+    max_x: float,
+) -> tuple[float, float]:
     x, y = position
-    new_x, new_y = x + delta[0], y + delta[1]
-    if 0 <= new_x < GRID_SIZE and 0 <= new_y < GRID_SIZE:
-        return (new_x, new_y)
-    return None
+    new_x = min(max_x, max(min_x, x + direction * speed * dt))
+    return (new_x, y)

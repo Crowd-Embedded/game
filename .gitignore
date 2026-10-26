@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+
+# Local agent tooling (skills are fetched per-machine)
+.agents/
+skills-lock.json

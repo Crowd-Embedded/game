@@ -23,6 +23,9 @@ python3 -m venv .venv && source .venv/bin/activate && pip install -r requirement
 python main.py
 ```
 
+`docker compose up` also starts two scripted players (`client1`, `client2`) so a race
+starts on its own; watch them with `docker compose logs -f client1 client2`.
+
 ### Manual
 
 ```bash
@@ -43,6 +46,6 @@ python main.py
 
 ## How it works
 
-A Game Session cycles through WAITING → COUNTDOWN → PLAYING, then ends. Players join with a 4-letter Game Code fetched via HTTP. When 2+ Players have joined, a countdown starts, the game runs for a fixed duration, and then a new code is generated for the next session. Spectators see the same events read-only.
+A Game Session cycles through WAITING → COUNTDOWN → PLAYING → ENDED. Players join with a 4-letter Game Code fetched via HTTP and race left-to-right along a Track; the first Player to reach the Finish Line wins, capped by the time limit. The winner is shown for a few seconds, then a new code is generated for the next session. Spectators keep one socket and follow the rotation, so the display never has to reconnect.
 
 See [`CONTEXT.md`](CONTEXT.md) for the domain glossary.

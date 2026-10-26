@@ -3,23 +3,40 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Game Spectator</title>
+<title>Race Spectator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div id="app">
-  <h1>Game Spectator</h1>
-  <div id="code-display"></div>
-  <div id="state-display" class="disconnected">Connecting...</div>
-  <div id="timer" class="hidden"></div>
-  <div id="player-count"></div>
-  <canvas id="world" class="hidden" width="400" height="400"></canvas>
-  <div id="join-info" class="hidden">
-    <div>Players connect using the code above</div>
-    <div id="join-code"></div>
+  <header class="hud">
+    <div class="hud-left">
+      <h1 class="game-title">Race Spectator</h1>
+      <div id="state-display" class="state-pill disconnected">Connecting…</div>
+    </div>
+    <div class="hud-right">
+      <div id="timer" class="hud-metric hidden">--</div>
+      <div id="player-count" class="hud-metric">Players 0/10</div>
+    </div>
+  </header>
+
+  <div id="legend" class="legend"></div>
+
+  <main class="stage">
+    <canvas id="world" width="1600" height="900"></canvas>
+    <div id="winner-banner" class="winner-banner hidden"></div>
+    <div id="stage-hint" class="stage-hint"></div>
+  </main>
+
+  <div id="join-info" class="join-info hidden">
+    <span class="join-label">Next race code</span>
+    <span id="join-code" class="join-code"></span>
   </div>
 </div>
-<div id="connection-status" class="disconnected">disconnected</div>
+
+<div id="connection-status" class="connection-status disconnected">offline</div>
 
 <script src="app.js"></script>
 </body>

@@ -3,10 +3,34 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
+    environment:
+      RACE_DEBUG: "1"
 
   frontend:
     build: ./frontend
     ports:
       - "3000:3000"
+    depends_on:
+      - backend
+
+  # Two scripted players so a game starts on its own and perf can be read in the logs:
+  #   docker compose logs -f client1 client2
+  client1:
+    build: ./client
+    environment:
+      BACKEND_URL: http://backend:8000/api/v1
+      PLAYER_NAME: Bolt
+      ACTION_INTERVAL_SECONDS: "0.10"
+      PLAYER_LOOP: "true"
+    depends_on:
+      - backend
+
+  client2:
+    build: ./client
+    environment:
+      BACKEND_URL: http://backend:8000/api/v1
+      PLAYER_NAME: Dash
+      ACTION_INTERVAL_SECONDS: "0.10"
+      PLAYER_LOOP: "true"
     depends_on:
       - backend

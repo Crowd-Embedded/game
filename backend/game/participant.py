@@ -1,9 +1,15 @@
 from contextlib import suppress
-import random
+import asyncio
+import logging
+import os
+import time
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from game.config import GRID_SIZE
+from game.config import START_X, START_Y
+
+log = logging.getLogger("race.participant")
+SEND_TIMEOUT_SECONDS = 1.0
 
 
 class Participant:
@@ -23,10 +29,23 @@ class Participant:
     async def send(self, message: dict):
         if not self.websocket:
             return
+        started = time.monotonic()
         try:
-            await self.websocket.send_json(message)
-        except WebSocketDisconnect:
+            await asyncio.wait_for(
+                self.websocket.send_json(message), timeout=SEND_TIMEOUT_SECONDS
+            )
+        except (WebSocketDisconnect, RuntimeError):
             self.websocket = None
+            return
+        except asyncio.TimeoutError:
+            # A stalled reader must never freeze the simulation loop.
+            log.warning("dropping stalled socket for %s", self.participant_id)
+            self.websocket = None
+            return
+        if os.environ.get("RACE_DEBUG") == "1":
+            elapsed = time.monotonic() - started
+            if elapsed > 0.05:
+                log.warning("slow send %.0fms to %s", elapsed * 1000, self.participant_id)
 
     async def close(self):
         if not self.websocket:
@@ -40,17 +59,21 @@ class Player(Participant):
     keep_on_detach = True
     close_on_finish = False
 
-    def __init__(self, participant_id: str, color: str):
+    def __init__(self, participant_id: str, color: str, name: str = ""):
         super().__init__(participant_id)
         self.color = color
-        self.x = random.randrange(GRID_SIZE)
-        self.y = random.randrange(GRID_SIZE)
+        self.name = name
+        self.x = START_X
+        self.y = START_Y
+        self.finished = False
+        self.direction = 0.0
+        self.last_input_at = 0.0
 
     @property
-    def position(self) -> tuple[int, int]:
+    def position(self) -> tuple[float, float]:
         return (self.x, self.y)
 
-    def move(self, position: tuple[int, int]):
+    def move(self, position: tuple[float, float]):
         self.x, self.y = position
 
 

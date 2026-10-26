@@ -16,6 +16,7 @@ router = APIRouter()
 
 class JoinRequest(BaseModel):
     code: str
+    name: str | None = None
 
 
 async def _send_player_init(ws: WebSocket, session: GameSession, client_id: str):
@@ -52,12 +53,13 @@ async def join(req: JoinRequest, manager: GameManager = Depends(get_manager)):
         raise HTTPException(400, "Game is full")
 
     client_id = str(uuid.uuid4())
-    await session.add_player(client_id)
+    player = await session.add_player(client_id, name=req.name)
 
     return {
         "client_id": client_id,
         "status": session.state.value,
         "time_remaining": session.remaining_countdown(),
+        "name": getattr(player, "name", "") if player else "",
     }
 
 

@@ -24,8 +24,8 @@ class StateBehavior:
     async def run(self, session: GameSession) -> GameState | None:
         return None
 
-    async def on_join(self, session: GameSession, client_id: str) -> GameState | None:
-        session.register_player(client_id)
+    async def on_join(self, session: GameSession, client_id: str, name: str | None = None) -> GameState | None:
+        session.register_player(client_id, name)
         await session.broadcast(messages.player_joined(session.player_count))
         return None
 
@@ -33,8 +33,8 @@ class StateBehavior:
 class WaitingState(StateBehavior):
     state = GameState.WAITING
 
-    async def on_join(self, session: GameSession, client_id: str) -> GameState | None:
-        await super().on_join(session, client_id)
+    async def on_join(self, session: GameSession, client_id: str, name: str | None = None) -> GameState | None:
+        await super().on_join(session, client_id, name)
         if session.player_count >= MIN_PLAYERS_TO_START:
             return GameState.COUNTDOWN
         return None
@@ -56,15 +56,28 @@ class PlayingState(StateBehavior):
     state = GameState.PLAYING
 
     async def enter(self, session: GameSession) -> None:
-        await session.broadcast(messages.game_started())
+        session.mark_game_started()
+        await session.broadcast(messages.game_started(GAME_DURATION_SECONDS))
         await session.broadcast(messages.world(session.players_state()))
+        session.start_game_loop()
 
     async def run(self, session: GameSession) -> GameState | None:
-        await asyncio.sleep(GAME_DURATION_SECONDS)
+        try:
+            await asyncio.wait_for(session.finished.wait(), timeout=GAME_DURATION_SECONDS)
+        except asyncio.TimeoutError:
+            if session.winner is None:
+                await session.end_game()
         return None
+
+
+class EndedState(StateBehavior):
+    state = GameState.ENDED
+
+    async def enter(self, session: GameSession) -> None:
+        pass
 
 
 STATES: dict[GameState, StateBehavior] = {
     behavior.state: behavior
-    for behavior in (WaitingState(), CountdownState(), PlayingState())
+    for behavior in (WaitingState(), CountdownState(), PlayingState(), EndedState())
 }
