@@ -14,6 +14,8 @@ from game.config import (
     JUMP_GRAVITY,
     JUMP_VELOCITY,
     MAX_PLAYERS,
+    OBSTACLE_SLOW_FACTOR,
+    OBSTACLE_SLOW_SECONDS,
     PLAYER_COLORS,
     PLAYER_SPEED,
     SNAPSHOT_RATE,
@@ -48,6 +50,27 @@ class GameSession:
         self.finished = asyncio.Event()
         self._winner: dict | None = None
         self._finishing: bool = False
+        self._obstacles: list[list[int]] = []
+
+    def prepare_obstacles(self) -> None:
+        import random
+
+        count = 4
+        lanes = max(1, self.player_count)
+        self._obstacles = []
+        for _ in range(lanes):
+            positions: set[int] = set()
+            attempts = 0
+            while len(positions) < count and attempts < 400:
+                attempts += 1
+                x = random.randint(100, 900)
+                if all(abs(x - p) >= 60 for p in positions):
+                    positions.add(x)
+            self._obstacles.append(sorted(positions))
+
+    @property
+    def obstacles(self) -> list[list[int]]:
+        return self._obstacles
 
     @property
     def state(self) -> GameState:
@@ -143,6 +166,7 @@ class GameSession:
                     "color": player.color,
                     "finished": getattr(player, "finished", False),
                     "eliminated": getattr(player, "eliminated", False),
+                    "slow": getattr(player, "slow_timer", 0.0) > 0,
                 }
             )
         return result
@@ -215,7 +239,7 @@ class GameSession:
             if ticks % snapshot_every == 0:
                 snapshots_sent += 1
                 send_started = self._clock()
-                await self.broadcast(messages.world(self.players_state()))
+                await self.broadcast(messages.world(self.players_state(), self._obstacles))
                 send_time += self._clock() - send_started
 
             iter_time += self._clock() - now
@@ -255,13 +279,16 @@ class GameSession:
             )
 
     def _step_players(self, dt: float) -> list[Player]:
-        for player in self._players:
+        for lane, player in enumerate(self._players):
             if player.eliminated:
                 continue
             if player.finished:
                 # Already crossed: keep running a little past the line and
                 # finish the jump, but accept no new jumps (apply_action guards).
                 speed = PLAYER_SPEED + (JUMP_BOOST if player.y > 0 else 0.0)
+                if player.slow_timer > 0:
+                    speed *= OBSTACLE_SLOW_FACTOR
+                    player.slow_timer = max(0.0, player.slow_timer - dt)
                 x, _ = actions.moved(
                     player.position,
                     actions.AUTO_RUN,
@@ -272,7 +299,13 @@ class GameSession:
                 )
                 player.move((x, self._stepped_height(player, dt)))
                 continue
+            # Tick down any active slow effect.
+            if player.slow_timer > 0:
+                player.slow_timer = max(0.0, player.slow_timer - dt)
             speed = PLAYER_SPEED + (JUMP_BOOST if player.y > 0 else 0.0)
+            if player.slow_timer > 0:
+                speed *= OBSTACLE_SLOW_FACTOR
+            old_x = player.x
             x, _ = actions.moved(
                 player.position,
                 actions.AUTO_RUN,
@@ -281,6 +314,19 @@ class GameSession:
                 START_X,
                 FINISH_X,
             )
+            # Obstacle collision: crossing a crate in this lane while
+            # grounded slows you down; jumping over it is free.
+            lane_obstacles = (
+                self._obstacles[lane] if lane < len(self._obstacles) else []
+            )
+            grounded = player.y <= 2.0
+            for i, ox in enumerate(lane_obstacles):
+                if i in player.hit_obstacles:
+                    continue
+                if old_x < ox <= x or (x >= ox and old_x < ox):
+                    player.hit_obstacles.add(i)
+                    if grounded:
+                        player.slow_timer = OBSTACLE_SLOW_SECONDS
             player.move((x, self._stepped_height(player, dt)))
             if player.x >= FINISH_X:
                 player.finished = True
@@ -331,7 +377,7 @@ class GameSession:
 
     async def _finish_race(self):
         """Send the final world frame plus the result, then end the session."""
-        await self.broadcast(messages.world(self.players_state()))
+        await self.broadcast(messages.world(self.players_state(), self._obstacles))
         await self.end_game()
 
     async def end_game(self):

@@ -46,6 +46,7 @@ const camera = {
 };
 let focal = 700;
 let latestWorld = null;
+let obstacles = [];
 let currentState = 'disconnected';
 let countdownInterval = null;
 let countdownHideTimeout = null;
@@ -212,6 +213,7 @@ function hideWinner() {
 function resetWorld() {
   snapshots.length = 0;
   latestWorld = null;
+  obstacles = [];
   jumpPuffs.length = 0;
   finishBursts.length = 0;
   finishedPrev.clear();
@@ -223,6 +225,10 @@ function pushWorld(data) {
   snapshots.push({ t: now, data });
   while (snapshots.length > 30) snapshots.shift();
   latestWorld = data;
+
+  if (Array.isArray(data.obstacles)) {
+    obstacles = data.obstacles;
+  }
 
   updateLegend(data.players || []);
 }
@@ -642,6 +648,34 @@ function drawFinishBursts() {
   });
 }
 
+function drawObstacle(ox, lateral) {
+  const trueDepth = ox - camera.x;
+  if (trueDepth < NEAR_DEPTH || trueDepth > DRAW_DISTANCE) return;
+  const alpha = depthFade(trueDepth);
+  const at = project(ox, lateral);
+  if (at.depth < NEAR_DEPTH) return;
+  const w = 4.5 * at.scale;
+  const h = 3.5 * at.scale;
+  const topOffset = 1.5 * at.scale;
+  // shadow on the road
+  worldCtx.fillStyle = `rgba(20, 24, 28, ${alpha * 0.28})`;
+  worldCtx.fillRect(at.x - w * 0.55, at.y - 2, w * 1.1, 1.5 * at.scale);
+  // front frame only (outline), no fill, so the road stays visible
+  worldCtx.strokeStyle = `rgba(90, 55, 30, ${alpha * 0.95})`;
+  worldCtx.lineWidth = Math.max(1, 1.4 * at.scale);
+  worldCtx.strokeRect(at.x - w / 2, at.y - h, w, h);
+  // plank lines
+  worldCtx.strokeStyle = `rgba(90, 55, 30, ${alpha * 0.6})`;
+  worldCtx.lineWidth = Math.max(1, 1 * at.scale);
+  for (let i = 1; i <= 2; i += 1) {
+    const ly = at.y - h + (h / 3) * i;
+    worldCtx.beginPath();
+    worldCtx.moveTo(at.x - w / 2 + 1, ly);
+    worldCtx.lineTo(at.x + w / 2 - 1, ly);
+    worldCtx.stroke();
+  }
+}
+
 function drawPuffs() {
   jumpPuffs.forEach((puff) => {
     const at = project(puff.x, puff.lateral);
@@ -740,6 +774,13 @@ function drawRacer(player, index, count, now, delta) {
   worldCtx.lineWidth = Math.max(1.2, radius * 0.1);
   worldCtx.strokeStyle = 'rgba(12, 16, 20, 0.75)';
   worldCtx.stroke();
+
+  if (player.slow) {
+    worldCtx.beginPath();
+    worldCtx.arc(0, 0, radius * 1.05, 0, Math.PI * 2);
+    worldCtx.fillStyle = 'rgba(139, 90, 60, 0.4)';
+    worldCtx.fill();
+  }
 
   // sun-side rim light
   worldCtx.beginPath();
@@ -917,9 +958,13 @@ function draw(world, now, dt) {
   drawTrees(camera.x);
   drawGround();
   drawRoad();
+  drawMarkings(players.length);
+  obstacles.forEach((laneObstacles, laneIndex) => {
+    const lateral = laneOf(laneIndex, obstacles.length || 1);
+    (laneObstacles || []).forEach((ox) => drawObstacle(ox, lateral));
+  });
   drawPuffs();
   drawFinishBursts();
-  drawMarkings(players.length);
   drawStartLine();
   drawFinish(finishX);
   drawHaze();
@@ -1027,6 +1072,9 @@ async function connect() {
           setState('playing');
           joinInfo.classList.add('hidden');
           hideWinner();
+          if (Array.isArray(msg.obstacles)) {
+            obstacles = msg.obstacles;
+          }
           if (msg.time_remaining !== undefined) {
             startGameTimer(msg.time_remaining);
           }

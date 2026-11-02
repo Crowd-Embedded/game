@@ -18,10 +18,12 @@ def countdown_started(time_remaining: int) -> dict:
     return {"type": "countdown_started", "time_remaining": time_remaining}
 
 
-def game_started(time_remaining: int | None = None) -> dict:
+def game_started(time_remaining: int | None = None, obstacles: list[int] | None = None) -> dict:
     msg = {"type": "game_started"}
     if time_remaining is not None:
         msg["time_remaining"] = time_remaining
+    if obstacles is not None:
+        msg["obstacles"] = obstacles
     return msg
 
 
@@ -39,8 +41,8 @@ def game_ended(winner: dict | None = None) -> dict:
 import time
 
 
-def world(players: list[dict]) -> dict:
-    return {
+def world(players: list[dict], obstacles: list[int] | None = None) -> dict:
+    msg = {
         "type": "world",
         "track_length": TRACK_LENGTH,
         "finish_x": FINISH_X,
@@ -48,6 +50,9 @@ def world(players: list[dict]) -> dict:
         "players": players,
         "t": time.time(),
     }
+    if obstacles is not None:
+        msg["obstacles"] = obstacles
+    return msg
 
 
 def state(code: str, game_state: GameState, player_count: int) -> dict:
@@ -67,6 +72,7 @@ class SessionSnapshot:
     player_count: int
     countdown_remaining: int
     players: tuple[dict, ...]
+    obstacles: tuple[int, ...] = ()
     game_time_remaining: int | None = None
     winner: dict | None = None
 
@@ -78,6 +84,7 @@ class SessionSnapshot:
             player_count=session.player_count,
             countdown_remaining=session.remaining_countdown(),
             players=tuple(session.players_state()),
+            obstacles=tuple(session.obstacles),
             game_time_remaining=session.remaining_game_time(),
             winner=session.winner,
         )
@@ -89,10 +96,10 @@ def player_init(snapshot: SessionSnapshot) -> list[dict]:
     if snapshot.state == GameState.PLAYING:
         msgs = []
         if snapshot.game_time_remaining is not None:
-            msgs.append(game_started(snapshot.game_time_remaining))
+            msgs.append(game_started(snapshot.game_time_remaining, list(snapshot.obstacles)))
         else:
-            msgs.append(game_started())
-        msgs.append(world(list(snapshot.players)))
+            msgs.append(game_started(obstacles=list(snapshot.obstacles)))
+        msgs.append(world(list(snapshot.players), list(snapshot.obstacles)))
         return msgs
     return []
 
@@ -103,13 +110,13 @@ def spectator_init(snapshot: SessionSnapshot) -> list[dict]:
         messages.append(countdown_started(snapshot.countdown_remaining))
     if snapshot.state == GameState.PLAYING:
         if snapshot.game_time_remaining is not None:
-            messages.append(game_started(snapshot.game_time_remaining))
+            messages.append(game_started(snapshot.game_time_remaining, list(snapshot.obstacles)))
         else:
-            messages.append(game_started())
-        messages.append(world(list(snapshot.players)))
+            messages.append(game_started(obstacles=list(snapshot.obstacles)))
+        messages.append(world(list(snapshot.players), list(snapshot.obstacles)))
     if snapshot.state == GameState.ENDED:
         # A spectator arriving during the result window should still see the finish.
         if snapshot.players:
-            messages.append(world(list(snapshot.players)))
+            messages.append(world(list(snapshot.players), list(snapshot.obstacles)))
         messages.append(game_ended(snapshot.winner))
     return messages

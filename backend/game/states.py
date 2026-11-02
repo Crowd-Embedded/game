@@ -56,9 +56,10 @@ class PlayingState(StateBehavior):
     state = GameState.PLAYING
 
     async def enter(self, session: GameSession) -> None:
+        session.prepare_obstacles()
         session.mark_game_started()
-        await session.broadcast(messages.game_started(GAME_DURATION_SECONDS))
-        await session.broadcast(messages.world(session.players_state()))
+        await session.broadcast(messages.game_started(GAME_DURATION_SECONDS, session.obstacles))
+        await session.broadcast(messages.world(session.players_state(), session.obstacles))
         session.start_game_loop()
 
     async def run(self, session: GameSession) -> GameState | None:

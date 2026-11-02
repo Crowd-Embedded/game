@@ -68,6 +68,8 @@ class Player(Participant):
         self.finished = False
         self.eliminated = False
         self.vy = 0.0
+        self.slow_timer = 0.0
+        self.hit_obstacles: set[int] = set()
 
     @property
     def position(self) -> tuple[float, float]:
