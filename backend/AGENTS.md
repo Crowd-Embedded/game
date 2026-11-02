@@ -23,7 +23,7 @@
 ## Simulation
 
 - The server is authoritative: every racer runs forward on its own at `PLAYER_SPEED`, the only input is `jump` (`game/actions.py`)
-- Jumping is vertical only for now: `JUMP_VELOCITY` up, `JUMP_GRAVITY` down, no stacking mid-air; a jump pays a small `JUMP_BOOST` to forward speed while airborne, so timing decides the race
+- Jumping is vertical only for now: `JUMP_VELOCITY` up, `JUMP_GRAVITY` down, no stacking mid-air. Jumping alone grants no speed boost (reserved for a future powerup); it only clears crates
 - 60 Hz fixed timestep (`TICK_RATE`), world snapshots broadcast at 30 Hz (`SNAPSHOT_RATE`, an exact tick multiple)
 - With auto-run nobody spreads out, so the camera kill line is dormant until something can slow a racer down
 - A race ends when the winning Player has landed past `FINISH_X` (+40 px), when only one un-eliminated player remains, or at `GAME_DURATION_SECONDS`. Crossing the line only marks a Player `finished`; jumping is then ignored even if a client sends it

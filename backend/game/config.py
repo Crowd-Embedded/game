@@ -11,7 +11,7 @@ START_Y = 0
 PLAYER_SPEED = 120.0  # every racer runs forward at this speed on its own
 JUMP_VELOCITY = 60.0  # upward speed of a jump, pixels per second
 JUMP_GRAVITY = 140.0  # pulls a jumping racer back down
-JUMP_BOOST = 45.0  # extra forward speed while airborne, so jump timing pays
+JUMP_BOOST = 0.0  # reserved: a future powerup may grant airborne speed; jumping alone must not help
 OBSTACLE_SLOW_FACTOR = 0.4  # speed multiplier while slowed by a crate
 OBSTACLE_SLOW_SECONDS = 0.6  # how long a crate slows a racer
 # The chase camera trails the leader by this many pixels; anything it leaves

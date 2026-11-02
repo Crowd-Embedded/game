@@ -10,7 +10,6 @@ from game.config import (
     COUNTDOWN_SECONDS,
     FINISH_X,
     GAME_DURATION_SECONDS,
-    JUMP_BOOST,
     JUMP_GRAVITY,
     JUMP_VELOCITY,
     MAX_PLAYERS,
@@ -285,7 +284,7 @@ class GameSession:
             if player.finished:
                 # Already crossed: keep running a little past the line and
                 # finish the jump, but accept no new jumps (apply_action guards).
-                speed = PLAYER_SPEED + (JUMP_BOOST if player.y > 0 else 0.0)
+                speed = PLAYER_SPEED
                 if player.slow_timer > 0:
                     speed *= OBSTACLE_SLOW_FACTOR
                     player.slow_timer = max(0.0, player.slow_timer - dt)
@@ -302,7 +301,7 @@ class GameSession:
             # Tick down any active slow effect.
             if player.slow_timer > 0:
                 player.slow_timer = max(0.0, player.slow_timer - dt)
-            speed = PLAYER_SPEED + (JUMP_BOOST if player.y > 0 else 0.0)
+            speed = PLAYER_SPEED
             if player.slow_timer > 0:
                 speed *= OBSTACLE_SLOW_FACTOR
             old_x = player.x
