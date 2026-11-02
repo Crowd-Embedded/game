@@ -52,6 +52,9 @@ let countdownHideTimeout = null;
 let gameTimerInterval = null;
 let winner = null;
 let lastFrameTime = 0;
+const jumpPuffs = [];
+const prevAir = new Map();
+const landingUntil = new Map();
 let currentCode = null;
 let fpsSamples = [];
 const debug = new URLSearchParams(location.search).has('debug');
@@ -95,7 +98,12 @@ function setState(state) {
 
   // The race begins the moment PLAYING arrives, so GO! belongs to that beat
   // rather than to the countdown timer's last tick.
-  if (state === 'playing' && wasCountdown && !countdownDisplay.classList.contains('go')) {
+  if (
+    state === 'playing' &&
+    wasCountdown &&
+    countdownDisplay &&
+    !countdownDisplay.classList.contains('go')
+  ) {
     showCountdown('GO!', true);
   }
 }
@@ -590,6 +598,22 @@ function drawHaze() {
 
 /* ---------------- racers ---------------- */
 
+function drawPuffs() {
+  jumpPuffs.forEach((puff) => {
+    const at = project(puff.x, puff.lateral);
+    if (at.depth < NEAR_DEPTH * 0.6) return;
+    const t = 1 - puff.life / puff.maxLife;
+    const radius = (4 + t * 22) * at.scale;
+    worldCtx.beginPath();
+    worldCtx.ellipse(at.x, at.y + radius * 0.15, radius, radius * 0.32, 0, 0, Math.PI * 2);
+    worldCtx.fillStyle = `rgba(200, 237, 249, ${(1 - t) * 0.35})`;
+    worldCtx.fill();
+    worldCtx.strokeStyle = `rgba(255, 255, 255, ${(1 - t) * 0.5})`;
+    worldCtx.lineWidth = Math.max(1, 1.2 * at.scale);
+    worldCtx.stroke();
+  });
+}
+
 function drawRacer(player, index, count, now, delta) {
   const at = project(player.x || 0, laneOf(index, count));
   const radius = PLAYER_RADIUS * at.scale;
@@ -597,7 +621,16 @@ function drawRacer(player, index, count, now, delta) {
 
   const speedFactor = Math.min(1, Math.abs(delta) / 5);
   const direction = delta >= 0 ? 1 : -1;
-  const bob = Math.sin(now / 160 + index) * radius * 0.12;
+  // Jump height is world pixels, so it grows with the sprite as it nears the lens.
+  const air = (player.y || 0) * at.scale;
+  const lift = Math.min(1, air / (radius * 3));
+  const bob = air > 2 ? 0 : Math.sin(now / 160 + index) * radius * 0.12;
+
+  // Squash and stretch: tuck on takeoff/landing, stretch in the air.
+  const landing = (landingUntil.get(player.id) || 0) > now;
+  const stretch = air > 1 ? lift : 0;
+  const squashX = landing ? 1.22 : 1 - 0.16 * stretch;
+  const squashY = landing ? 0.78 : 1 + 0.26 * stretch;
 
   // Trail: behind is nearer the lens, so the ghosts sit lower and larger.
   if (speedFactor > 0.08 && !player.finished) {
@@ -610,7 +643,7 @@ function drawRacer(player, index, count, now, delta) {
       worldCtx.beginPath();
       worldCtx.arc(
         ghost.x,
-        ghost.y + bob,
+        ghost.y + bob - (player.y || 0) * ghost.scale,
         PLAYER_RADIUS * ghost.scale * (1 - i * 0.12),
         0,
         Math.PI * 2
@@ -620,16 +653,27 @@ function drawRacer(player, index, count, now, delta) {
     }
   }
 
-  // shadow
+  // shadow: the only part of a jumping racer that stays on the road
   worldCtx.beginPath();
-  worldCtx.ellipse(at.x, at.y + radius * 0.86, radius * 1.05, radius * 0.3, 0, 0, Math.PI * 2);
-  worldCtx.fillStyle = 'rgba(20, 24, 28, 0.26)';
+  worldCtx.ellipse(
+    at.x,
+    at.y + radius * 0.86,
+    radius * (1.05 - 0.78 * lift),
+    radius * (0.3 - 0.22 * lift),
+    0,
+    0,
+    Math.PI * 2
+  );
+  worldCtx.fillStyle = `rgba(20, 24, 28, ${0.26 * (1 - 0.88 * lift)})`;
   worldCtx.fill();
 
   // body: seen from behind, so it stretches into the screen with speed
   worldCtx.save();
-  worldCtx.translate(at.x, at.y + bob);
-  worldCtx.scale(1 - speedFactor * 0.07, 1 + speedFactor * 0.11);
+  worldCtx.translate(at.x, at.y + bob - air);
+  worldCtx.scale(
+    (1 - speedFactor * 0.07) * squashX,
+    (1 + speedFactor * 0.11) * squashY
+  );
   const gradient = worldCtx.createRadialGradient(
     -radius * 0.35,
     -radius * 0.4,
@@ -659,7 +703,7 @@ function drawRacer(player, index, count, now, delta) {
 
   if (player.finished) {
     worldCtx.beginPath();
-    worldCtx.arc(at.x, at.y + bob, radius * 1.2, 0, Math.PI * 2);
+    worldCtx.arc(at.x, at.y + bob - air, radius * 1.2, 0, Math.PI * 2);
     worldCtx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
     worldCtx.lineWidth = Math.max(2, radius * 0.1);
     worldCtx.stroke();
@@ -671,7 +715,7 @@ function drawLeaderCrown(player, index, count) {
   const radius = PLAYER_RADIUS * at.scale;
   if (at.depth < NEAR_DEPTH * 0.6) return;
   const size = Math.max(5, radius * 0.55);
-  const y = at.y - radius * 1.15;
+  const y = at.y - radius * 1.15 - (player.y || 0) * at.scale;
   worldCtx.beginPath();
   worldCtx.moveTo(at.x, y);
   worldCtx.lineTo(at.x + size, y - size);
@@ -694,7 +738,7 @@ function drawSpeedLines(player, index, count, speedFactor) {
   worldCtx.lineCap = 'round';
   for (let i = 0; i < 4; i += 1) {
     const spread = (i - 1.5) * radius * 0.8;
-    const from = at.y + radius * 1.05;
+    const from = at.y + radius * 1.05 - (player.y || 0) * at.scale;
     const to = from + radius * (1.1 + 0.25 * i);
     worldCtx.beginPath();
     worldCtx.moveTo(at.x + spread, from);
@@ -742,7 +786,7 @@ function draw(world, now, dt) {
   worldCtx.clearRect(0, 0, VIEW.w, VIEW.h);
 
   const players = (world && world.players) || [];
-  const finishX = (world && world.finish_x) || 500;
+  const finishX = (world && world.finish_x) || 1000;
   const travelled = players.reduce((max, p) => Math.max(max, p.x || 0), 0);
   const ended = currentState === 'ended' && players.length > 0;
 
@@ -752,6 +796,26 @@ function draw(world, now, dt) {
   const targetDistance = ended ? Math.min(wanted, ENDED_DISTANCE) : wanted;
   camera.distance += (targetDistance - camera.distance) * Math.min(1, dt / CAMERA_EASE_MS);
   camera.x = (players.length ? travelled : 0) - camera.distance;
+
+  // Age jump dust puffs and spawn new ones on landing.
+  for (let i = jumpPuffs.length - 1; i >= 0; i -= 1) {
+    jumpPuffs[i].life -= dt;
+    if (jumpPuffs[i].life <= 0) jumpPuffs.splice(i, 1);
+  }
+  players.forEach((player, index) => {
+    const y = player.y || 0;
+    const wasAir = (prevAir.get(player.id) || 0) > 0.5;
+    if (wasAir && y <= 0.5) {
+      landingUntil.set(player.id, now + 130);
+      jumpPuffs.push({
+        x: player.x || 0,
+        lateral: laneOf(index, players.length),
+        life: 420,
+        maxLife: 420,
+      });
+    }
+    prevAir.set(player.id, y);
+  });
 
   const ahead = sampleWorld(now - INTERP_DELAY_MS - 70);
   const prevX = new Map(((ahead && ahead.players) || []).map((p) => [p.id, p.x || 0]));
@@ -770,6 +834,7 @@ function draw(world, now, dt) {
   drawTrees(camera.x);
   drawGround();
   drawRoad();
+  drawPuffs();
   drawMarkings(players.length);
   drawStartLine();
   drawFinish(finishX);

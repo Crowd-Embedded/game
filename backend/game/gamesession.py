@@ -10,7 +10,9 @@ from game.config import (
     COUNTDOWN_SECONDS,
     FINISH_X,
     GAME_DURATION_SECONDS,
-    INPUT_TIMEOUT_SECONDS,
+    JUMP_BOOST,
+    JUMP_GRAVITY,
+    JUMP_VELOCITY,
     MAX_PLAYERS,
     PLAYER_COLORS,
     PLAYER_SPEED,
@@ -153,11 +155,11 @@ class GameSession:
         player = self._players.get(client_id)
         if player is None or player.finished or player.eliminated:
             return
-        direction = actions.direction_for(action)
-        if direction is None:
+        if not actions.is_jump(action):
             return
-        player.direction = direction
-        player.last_input_at = self._clock()
+        if player.y > 0 or player.vy > 0:
+            return  # already in the air; a jump cannot stack
+        player.vy = JUMP_VELOCITY
 
     def start_game_loop(self):
         if self._tick_task is None or self._tick_task.done():
@@ -189,7 +191,7 @@ class GameSession:
                 next_tick = now + TICK_INTERVAL
             ticks += 1
 
-            dropped = self._step_players(dt, now)
+            dropped = self._step_players(dt)
             for player in dropped:
                 await self.broadcast(
                     messages.player_eliminated(player.participant_id, player.name)
@@ -251,26 +253,23 @@ class GameSession:
                 flush=True,
             )
 
-    def _step_players(self, dt: float, now: float) -> list[Player]:
+    def _step_players(self, dt: float) -> list[Player]:
         for player in self._players:
             if player.finished or player.eliminated:
                 continue
-            if player.direction and now - player.last_input_at > INPUT_TIMEOUT_SECONDS:
-                player.direction = 0.0
-            if not player.direction:
-                continue
-            x, y = actions.moved(
+            # Everyone runs on their own; the only input is when to leave the ground.
+            speed = PLAYER_SPEED + (JUMP_BOOST if player.y > 0 else 0.0)
+            x, _ = actions.moved(
                 player.position,
-                player.direction,
+                actions.AUTO_RUN,
                 dt,
-                PLAYER_SPEED,
+                speed,
                 START_X,
                 FINISH_X,
             )
-            player.move((x, y))
+            player.move((x, self._stepped_height(player, dt)))
             if player.x >= FINISH_X:
                 player.finished = True
-                player.direction = 0.0
                 self._winner = {
                     "id": player.participant_id,
                     "name": player.name,
@@ -279,6 +278,17 @@ class GameSession:
                 asyncio.create_task(self._finish_race())
                 return []
         return self._drop_laggards()
+
+    def _stepped_height(self, player: Player, dt: float) -> float:
+        """Integrate one tick of jump physics; 0 is the ground."""
+        if player.y <= 0 and player.vy <= 0:
+            return 0.0
+        player.vy -= JUMP_GRAVITY * dt
+        y = player.y + player.vy * dt
+        if y <= 0:
+            player.vy = 0.0
+            return 0.0
+        return y
 
     def _drop_laggards(self) -> list[Player]:
         """Eliminate everyone the chase camera has left behind."""
@@ -293,7 +303,6 @@ class GameSession:
         dropped = [player for player in standing if player.x < cut]
         for player in dropped:
             player.eliminated = True
-            player.direction = 0.0
         return dropped
 
     async def _finish_race(self):

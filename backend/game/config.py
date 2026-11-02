@@ -4,15 +4,17 @@ MAX_PLAYERS = 10
 MIN_PLAYERS_TO_START = 2
 COUNTDOWN_SECONDS = 5
 GAME_DURATION_SECONDS = 60
-TRACK_LENGTH = 500
-FINISH_X = 500
+TRACK_LENGTH = 1000
+FINISH_X = 1000
 START_X = 0
 START_Y = 0
-PLAYER_SPEED = 120.0  # pixels per second while holding a direction
+PLAYER_SPEED = 120.0  # every racer runs forward at this speed on its own
+JUMP_VELOCITY = 60.0  # upward speed of a jump, pixels per second
+JUMP_GRAVITY = 140.0  # pulls a jumping racer back down
+JUMP_BOOST = 45.0  # extra forward speed while airborne, so jump timing pays
 # The chase camera trails the leader by this many pixels; anything it leaves
 # behind is eliminated from the race.
 CAMERA_DISTANCE = 100.0
-INPUT_TIMEOUT_SECONDS = 0.35  # a held key expires if no repeat arrives
 RESULT_SECONDS = 6  # how long the winner is shown before the next race
 TICK_RATE = 60  # Hz
 TICK_INTERVAL = 1.0 / TICK_RATE

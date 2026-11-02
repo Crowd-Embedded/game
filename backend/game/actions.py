@@ -1,16 +1,11 @@
-"""Input intent: the server integrates movement, the client only holds a key."""
+"""Input intent: the server runs every racer forward, the client only asks to jump."""
 
-DIRECTIONS = {
-    "left": -1.0,
-    "right": 1.0,
-    "stop": 0.0,
-    "noop": None,
-}
+JUMP = "jump"
+AUTO_RUN = 1.0
 
 
-def direction_for(action: str) -> float | None:
-    """Return the held direction for an action, or None if it is not a direction."""
-    return DIRECTIONS.get(action)
+def is_jump(action: str) -> bool:
+    return action == JUMP
 
 
 def moved(

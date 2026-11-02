@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import json
 import os
+import random
 import sys
 import time
 
@@ -12,17 +13,20 @@ BASE_URL = os.environ.get("BACKEND_URL", "http://localhost:8000/api/v1")
 WS_BASE_URL = BASE_URL.replace("http://", "ws://").replace("https://", "wss://")
 PLAYER_NAME = os.environ.get("PLAYER_NAME") or None
 ACTION_INTERVAL_SECONDS = float(os.environ.get("ACTION_INTERVAL_SECONDS", "0.10"))
+JUMP_CHANCE = float(os.environ.get("JUMP_CHANCE", "0.10"))
 LOOP = os.environ.get("PLAYER_LOOP", "true").lower() in ("1", "true", "yes")
 
 
-async def hold_right(ws, stats):
-    """Simulate holding the right key as fast as possible."""
+async def jump_now_and_then(ws, stats):
+    """Roll for a jump every interval; the server runs the racer forward."""
     while True:
         await asyncio.sleep(ACTION_INTERVAL_SECONDS)
+        if random.random() >= JUMP_CHANCE:
+            continue
         await asyncio.wait_for(
-            ws.send(json.dumps({"type": "action", "action": "right"})), timeout=1.0
+            ws.send(json.dumps({"type": "action", "action": "jump"})), timeout=1.0
         )
-        stats["actions_sent"] += 1
+        stats["jumps_sent"] += 1
 
 
 async def join(http: httpx.AsyncClient):
@@ -39,7 +43,7 @@ async def join(http: httpx.AsyncClient):
 
 def new_stats():
     return {
-        "actions_sent": 0,
+        "jumps_sent": 0,
         "world_count": 0,
         "first_world_at": None,
         "last_world_at": None,
@@ -59,7 +63,7 @@ def report(stats, elapsed):
     print(
         f"world messages/s={hz:.1f} avg_gap={avg_gap * 1000:.1f}ms "
         f"max_gap={stats['max_gap'] * 1000:.1f}ms "
-        f"actions={stats['actions_sent']} total={stats['world_count']}"
+        f"jumps={stats['jumps_sent']} total={stats['world_count']}"
     )
 
 
@@ -116,7 +120,7 @@ async def play_once(http: httpx.AsyncClient):
                     "game_started",
                     "world",
                 ):
-                    action_task = asyncio.create_task(hold_right(ws, stats))
+                    action_task = asyncio.create_task(jump_now_and_then(ws, stats))
         finally:
             if action_task is not None:
                 action_task.cancel()

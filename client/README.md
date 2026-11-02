@@ -22,7 +22,7 @@ python main.py
 - Joins the game
 - Connects to the WebSocket
 - Prints all received messages
-- Once the game starts, sends a random action (`left`/`right`/`up`/`down`/`noop`) every 0.20s
+- Once the game starts, runs on its own (the server drives it) and rolls for a jump every 0.10s with a 10% chance
 - Exits when the game ends
 
 ## Lint & Format

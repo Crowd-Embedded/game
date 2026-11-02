@@ -9,12 +9,16 @@ A single round of play: players join during WAITING, countdown starts when 2+ pl
 _Avoid_: Game, round, match
 
 **Track**:
-The horizontal course Players race along, measured in pixels from the start line to the Finish Line. Players only move left and right. A Player's `y` axis is always 0 today; it is reserved for jumping later.
+The horizontal course Players race along, measured in pixels from the start line to the Finish Line. Racers run forward on their own; a Player never steers. A Player's `y` is height above the Track, non-zero only while jumping.
 _Avoid_: Course, map, level, field
 
 **Finish Line**:
 The position on the Track where a race ends; the first Player to reach it wins.
 _Avoid_: Goal, end, goal line
+
+**Jump**:
+The only input in a race. A jump carries a Player off the Track for a moment and pays a small forward boost while airborne, so its timing is what separates the pack. Jumps do not stack.
+_Avoid_: Leap, hop, boost
 
 **Eliminated**:
 A Player who has fallen more than the chase-camera distance behind the leader. Eliminated Players freeze in place, can no longer win, and are no longer drawn, because the camera has left them behind.

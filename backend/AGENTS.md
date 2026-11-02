@@ -16,17 +16,18 @@
 - POST /api/v1/spectator/join returns spectator_id
 - GET /api/v1/debug/state returns the live session (state, players, positions) — dev only
 - WS /api/v1/player/ws/{client_id} receives JSON events: countdown_started, game_started, world, player_eliminated, game_ended
-- WS /api/v1/player/ws/{client_id} accepts `{"type": "action", "action": "left|right|stop|noop"}` during play
+- WS /api/v1/player/ws/{client_id} accepts `{"type": "action", "action": "jump"}` during play
 - WS /api/v1/spectator/ws/{spectator_id} receives state, countdown_started, game_started, world, game_ended, player_joined
 - One spectator socket survives session rotation: it is re-attached to the new session automatically
 
 ## Simulation
 
-- The server is authoritative: clients send held-direction input, the server integrates position (`game/actions.py`)
+- The server is authoritative: every racer runs forward on its own at `PLAYER_SPEED`, the only input is `jump` (`game/actions.py`)
+- Jumping is vertical only for now: `JUMP_VELOCITY` up, `JUMP_GRAVITY` down, no stacking mid-air; a jump pays a small `JUMP_BOOST` to forward speed while airborne, so timing decides the race
 - 60 Hz fixed timestep (`TICK_RATE`), world snapshots broadcast at 30 Hz (`SNAPSHOT_RATE`, an exact tick multiple)
-- Input expires after `INPUT_TIMEOUT_SECONDS` without a repeat, so a dropped key stops the player
+- With auto-run nobody spreads out, so the camera kill line is dormant until something can slow a racer down
 - A race ends when a player's `x` reaches `FINISH_X`, when only one un-eliminated player remains, or at `GAME_DURATION_SECONDS`
-- The chase camera is also the kill line: any player more than `CAMERA_DISTANCE` behind the leader is eliminated — frozen, ignored by `apply_action`, flagged `eliminated` in `players_state()`, and announced with `player_eliminated`
+- The chase camera is also the kill line (dormant under auto-run): any player more than `CAMERA_DISTANCE` behind the leader is eliminated — frozen, ignored by `apply_action`, flagged `eliminated` in `players_state()`, and announced with `player_eliminated`
 - `world` carries `catch_up_distance` so the spectator display never keeps a second copy of that constant
 - Winning is decided on the server; `game_ended` carries `{id, name, color}` for the winner
 
