@@ -13,7 +13,8 @@ BASE_URL = os.environ.get("BACKEND_URL", "http://localhost:8000/api/v1")
 WS_BASE_URL = BASE_URL.replace("http://", "ws://").replace("https://", "wss://")
 PLAYER_NAME = os.environ.get("PLAYER_NAME") or None
 ACTION_INTERVAL_SECONDS = float(os.environ.get("ACTION_INTERVAL_SECONDS", "0.10"))
-JUMP_CHANCE = float(os.environ.get("JUMP_CHANCE", "0.10"))
+JUMP_OPTIONS = (0.10, 0.20, 0.30)
+CURRENT_JUMP_CHANCE = 0.10
 LOOP = os.environ.get("PLAYER_LOOP", "true").lower() in ("1", "true", "yes")
 
 
@@ -21,7 +22,7 @@ async def jump_now_and_then(ws, stats):
     """Roll for a jump every interval; the server runs the racer forward."""
     while True:
         await asyncio.sleep(ACTION_INTERVAL_SECONDS)
-        if random.random() >= JUMP_CHANCE:
+        if random.random() >= CURRENT_JUMP_CHANCE:
             continue
         await asyncio.wait_for(
             ws.send(json.dumps({"type": "action", "action": "jump"})), timeout=1.0
@@ -70,9 +71,11 @@ def report(stats, elapsed):
 async def play_once(http: httpx.AsyncClient):
     data = await join(http)
     client_id = data["client_id"]
+    global CURRENT_JUMP_CHANCE
+    CURRENT_JUMP_CHANCE = random.choice(JUMP_OPTIONS)
     print(
         f"joined name={data.get('name')} client_id={client_id} "
-        f"status={data['status']}",
+        f"status={data['status']} jump_chance={CURRENT_JUMP_CHANCE:.0%}",
         flush=True,
     )
 
