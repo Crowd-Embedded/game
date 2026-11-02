@@ -14,6 +14,11 @@ JUMP_GRAVITY = 140.0  # pulls a jumping racer back down
 JUMP_BOOST = 0.0  # reserved: a future powerup may grant airborne speed; jumping alone must not help
 OBSTACLE_SLOW_FACTOR = 0.4  # speed multiplier while slowed by a crate
 OBSTACLE_SLOW_SECONDS = 0.6  # how long a crate slows a racer
+# Powerups: a racer who picks one up gains a charge; using it grants a
+# short speed boost. Designed as a registry so more types can be added.
+POWERUP_BOOST_DURATION = 1.0  # seconds of boosted speed
+POWERUP_BOOST_FACTOR = 1.5  # speed multiplier while boosted
+POWERUP_TYPES = ("boost",)
 # The chase camera trails the leader by this many pixels; anything it leaves
 # behind is eliminated from the race.
 CAMERA_DISTANCE = 100.0

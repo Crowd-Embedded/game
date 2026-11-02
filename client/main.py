@@ -15,19 +15,32 @@ PLAYER_NAME = os.environ.get("PLAYER_NAME") or None
 ACTION_INTERVAL_SECONDS = float(os.environ.get("ACTION_INTERVAL_SECONDS", "0.10"))
 JUMP_OPTIONS = (0.10, 0.20, 0.30)
 CURRENT_JUMP_CHANCE = 0.10
+HAS_BOOST = False
+CURRENT_RANK = 0
 LOOP = os.environ.get("PLAYER_LOOP", "true").lower() in ("1", "true", "yes")
 
 
-async def jump_now_and_then(ws, stats):
-    """Roll for a jump every interval; the server runs the racer forward."""
+async def send_inputs(ws, stats):
+    """Roll for a jump or a boost every interval; the server runs the racer."""
+    global HAS_BOOST
+    global CURRENT_RANK
     while True:
         await asyncio.sleep(ACTION_INTERVAL_SECONDS)
-        if random.random() >= CURRENT_JUMP_CHANCE:
+        # Jump roll (per-game chance).
+        if random.random() < CURRENT_JUMP_CHANCE:
+            await asyncio.wait_for(
+                ws.send(json.dumps({"type": "action", "action": "jump"})), timeout=1.0
+            )
+            stats["jumps_sent"] += 1
             continue
-        await asyncio.wait_for(
-            ws.send(json.dumps({"type": "action", "action": "jump"})), timeout=1.0
-        )
-        stats["jumps_sent"] += 1
+        # Boost roll: 30% chance to use it if we are carrying one.
+        boost_chance = 0.60 if CURRENT_RANK > 0 else 0.30
+        if HAS_BOOST and random.random() < boost_chance:
+            await asyncio.wait_for(
+                ws.send(json.dumps({"type": "action", "action": "boost"})), timeout=1.0
+            )
+            stats["boosts_sent"] += 1
+            HAS_BOOST = False
 
 
 async def join(http: httpx.AsyncClient):
@@ -45,6 +58,7 @@ async def join(http: httpx.AsyncClient):
 def new_stats():
     return {
         "jumps_sent": 0,
+        "boosts_sent": 0,
         "world_count": 0,
         "first_world_at": None,
         "last_world_at": None,
@@ -64,7 +78,7 @@ def report(stats, elapsed):
     print(
         f"world messages/s={hz:.1f} avg_gap={avg_gap * 1000:.1f}ms "
         f"max_gap={stats['max_gap'] * 1000:.1f}ms "
-        f"jumps={stats['jumps_sent']} total={stats['world_count']}"
+        f"jumps={stats['jumps_sent']} boosts={stats['boosts_sent']} total={stats['world_count']}"
     )
 
 
@@ -72,7 +86,11 @@ async def play_once(http: httpx.AsyncClient):
     data = await join(http)
     client_id = data["client_id"]
     global CURRENT_JUMP_CHANCE
+    global HAS_BOOST
+    global CURRENT_RANK
     CURRENT_JUMP_CHANCE = random.choice(JUMP_OPTIONS)
+    HAS_BOOST = False
+    CURRENT_RANK = 0
     print(
         f"joined name={data.get('name')} client_id={client_id} "
         f"status={data['status']} jump_chance={CURRENT_JUMP_CHANCE:.0%}",
@@ -98,6 +116,15 @@ async def play_once(http: httpx.AsyncClient):
                         stats["gap_count"] += 1
                     stats["last_world_at"] = now
                     stats["world_count"] += 1
+                    players = msg.get("players") or []
+                    ordered = sorted(players, key=lambda p: p.get("x", 0), reverse=True)
+                    for i, p in enumerate(ordered):
+                        if p.get("id") == client_id:
+                            CURRENT_RANK = i
+                            break
+                    for p in players:
+                        if p.get("id") == client_id:
+                            HAS_BOOST = bool((p.get("powerups") or {}).get("boost", 0))
                     if started_at is None:
                         started_at = now
                         print("game started", flush=True)
@@ -123,7 +150,7 @@ async def play_once(http: httpx.AsyncClient):
                     "game_started",
                     "world",
                 ):
-                    action_task = asyncio.create_task(jump_now_and_then(ws, stats))
+                    action_task = asyncio.create_task(send_inputs(ws, stats))
         finally:
             if action_task is not None:
                 action_task.cancel()

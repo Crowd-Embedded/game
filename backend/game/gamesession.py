@@ -17,6 +17,8 @@ from game.config import (
     OBSTACLE_SLOW_SECONDS,
     PLAYER_COLORS,
     PLAYER_SPEED,
+    POWERUP_BOOST_DURATION,
+    POWERUP_BOOST_FACTOR,
     SNAPSHOT_RATE,
     TICK_RATE,
     START_X,
@@ -50,6 +52,7 @@ class GameSession:
         self._winner: dict | None = None
         self._finishing: bool = False
         self._obstacles: list[list[int]] = []
+        self._powerups: list[list[dict]] = []
 
     def prepare_obstacles(self) -> None:
         import random
@@ -67,9 +70,18 @@ class GameSession:
                     positions.add(x)
             self._obstacles.append(sorted(positions))
 
+        # One boost powerup per lane on the first half of the track.
+        self._powerups = []
+        for _ in range(lanes):
+            self._powerups.append([{"type": "boost", "x": random.randint(120, 480)}])
+
     @property
     def obstacles(self) -> list[list[int]]:
         return self._obstacles
+
+    @property
+    def powerups(self) -> list[list[dict]]:
+        return [[p for p in lane if not p.get("collected")] for lane in self._powerups]
 
     @property
     def state(self) -> GameState:
@@ -166,6 +178,8 @@ class GameSession:
                     "finished": getattr(player, "finished", False),
                     "eliminated": getattr(player, "eliminated", False),
                     "slow": getattr(player, "slow_timer", 0.0) > 0,
+                    "powerups": dict(getattr(player, "powerups", {}) or {}),
+                    "boosting": getattr(player, "boost_timer", 0.0) > 0,
                 }
             )
         return result
@@ -179,7 +193,15 @@ class GameSession:
         player = self._players.get(client_id)
         if player is None or player.finished or player.eliminated:
             return
-        if not actions.is_jump(action):
+        if not actions.is_jump(action) and action != "boost":
+            return
+        if action == "boost":
+            if player.powerups.get("boost", 0) <= 0:
+                return
+            if player.boost_timer > 0:
+                return  # already boosting
+            player.powerups["boost"] -= 1
+            player.boost_timer = POWERUP_BOOST_DURATION
             return
         if player.y > 0 or player.vy > 0:
             return  # already in the air; a jump cannot stack
@@ -238,7 +260,7 @@ class GameSession:
             if ticks % snapshot_every == 0:
                 snapshots_sent += 1
                 send_started = self._clock()
-                await self.broadcast(messages.world(self.players_state(), self._obstacles))
+                await self.broadcast(messages.world(self.players_state(), self._obstacles, self._powerups))
                 send_time += self._clock() - send_started
 
             iter_time += self._clock() - now
@@ -285,6 +307,9 @@ class GameSession:
                 # Already crossed: keep running a little past the line and
                 # finish the jump, but accept no new jumps (apply_action guards).
                 speed = PLAYER_SPEED
+                if player.boost_timer > 0:
+                    speed *= POWERUP_BOOST_FACTOR
+                    player.boost_timer = max(0.0, player.boost_timer - dt)
                 if player.slow_timer > 0:
                     speed *= OBSTACLE_SLOW_FACTOR
                     player.slow_timer = max(0.0, player.slow_timer - dt)
@@ -301,7 +326,12 @@ class GameSession:
             # Tick down any active slow effect.
             if player.slow_timer > 0:
                 player.slow_timer = max(0.0, player.slow_timer - dt)
+            # Tick down any active boost effect.
+            if player.boost_timer > 0:
+                player.boost_timer = max(0.0, player.boost_timer - dt)
             speed = PLAYER_SPEED
+            if player.boost_timer > 0:
+                speed *= POWERUP_BOOST_FACTOR
             if player.slow_timer > 0:
                 speed *= OBSTACLE_SLOW_FACTOR
             old_x = player.x
@@ -326,6 +356,21 @@ class GameSession:
                     player.hit_obstacles.add(i)
                     if grounded:
                         player.slow_timer = OBSTACLE_SLOW_SECONDS
+            # Powerup pickup: crossing a powerup in this lane grants a charge.
+            lane_powerups = (
+                self._powerups[lane] if lane < len(self._powerups) else []
+            )
+            for i, pw in enumerate(lane_powerups):
+                if i in player.hit_powerups:
+                    continue
+                ox = pw["x"]
+                if old_x < ox <= x or (x >= ox and old_x < ox):
+                    player.hit_powerups.add(i)
+                    ptype = pw["type"]
+                    player.powerups[ptype] = player.powerups.get(ptype, 0) + 1
+                    # Mark collected so the display removes it.
+                    pw["collected"] = True
+                    pw["collected_by"] = player.participant_id
             player.move((x, self._stepped_height(player, dt)))
             if player.x >= FINISH_X:
                 player.finished = True
@@ -376,7 +421,7 @@ class GameSession:
 
     async def _finish_race(self):
         """Send the final world frame plus the result, then end the session."""
-        await self.broadcast(messages.world(self.players_state(), self._obstacles))
+        await self.broadcast(messages.world(self.players_state(), self._obstacles, self._powerups))
         await self.end_game()
 
     async def end_game(self):

@@ -70,6 +70,9 @@ class Player(Participant):
         self.vy = 0.0
         self.slow_timer = 0.0
         self.hit_obstacles: set[int] = set()
+        self.powerups: dict[str, int] = {}
+        self.boost_timer = 0.0
+        self.hit_powerups: set[int] = set()
 
     @property
     def position(self) -> tuple[float, float]:

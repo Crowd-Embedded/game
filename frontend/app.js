@@ -47,16 +47,17 @@ const camera = {
 let focal = 700;
 let latestWorld = null;
 let obstacles = [];
+let powerups = [];
 let currentState = 'disconnected';
 let countdownInterval = null;
 let countdownHideTimeout = null;
 let gameTimerInterval = null;
 let winner = null;
 let lastFrameTime = 0;
-const jumpPuffs = [];
 const finishBursts = [];
 const finishedPrev = new Set();
 const prevAir = new Map();
+const prevBoosting = new Map();
 const landingUntil = new Map();
 let currentCode = null;
 let fpsSamples = [];
@@ -214,7 +215,7 @@ function resetWorld() {
   snapshots.length = 0;
   latestWorld = null;
   obstacles = [];
-  jumpPuffs.length = 0;
+  powerups = [];
   finishBursts.length = 0;
   finishedPrev.clear();
   updateLegend([]);
@@ -228,6 +229,9 @@ function pushWorld(data) {
 
   if (Array.isArray(data.obstacles)) {
     obstacles = data.obstacles;
+  }
+  if (Array.isArray(data.powerups)) {
+    powerups = data.powerups;
   }
 
   updateLegend(data.players || []);
@@ -704,21 +708,47 @@ function drawObstacle(ox, lateral) {
   }
 }
 
-function drawPuffs() {
-  jumpPuffs.forEach((puff) => {
-    const at = project(puff.x, puff.lateral);
-    if (at.depth < NEAR_DEPTH * 0.6) return;
-    const t = 1 - puff.life / puff.maxLife;
-    const radius = (4 + t * 22) * at.scale;
-    worldCtx.beginPath();
-    worldCtx.ellipse(at.x, at.y + radius * 0.15, radius, radius * 0.32, 0, 0, Math.PI * 2);
-    worldCtx.fillStyle = `rgba(200, 237, 249, ${(1 - t) * 0.35})`;
-    worldCtx.fill();
-    worldCtx.strokeStyle = `rgba(255, 255, 255, ${(1 - t) * 0.5})`;
-    worldCtx.lineWidth = Math.max(1, 1.2 * at.scale);
-    worldCtx.stroke();
+function drawPowerups() {
+  powerups.forEach((lanePowerups, laneIndex) => {
+    const lateral = laneOf(laneIndex, powerups.length || 1);
+    (lanePowerups || []).forEach((pw) => {
+      if (pw.collected) return;
+      drawPowerup(pw.x, lateral);
+    });
   });
 }
+
+function drawPowerup(ox, lateral) {
+  const trueDepth = ox - camera.x;
+  if (trueDepth < NEAR_DEPTH || trueDepth > DRAW_DISTANCE) return;
+  const alpha = depthFade(trueDepth);
+  const at = project(ox, lateral);
+  if (at.depth < NEAR_DEPTH) return;
+  const s = at.scale * 0.5;
+  const cx = at.x;
+  const cy = at.y - 6 * s;
+  // glow
+  worldCtx.beginPath();
+  worldCtx.arc(cx, cy - 2 * s, 9 * s, 0, Math.PI * 2);
+  worldCtx.fillStyle = `rgba(255, 230, 120, ${alpha * 0.22})`;
+  worldCtx.fill();
+  // lightning bolt
+  worldCtx.beginPath();
+  worldCtx.moveTo(cx - 2 * s, cy - 12 * s);
+  worldCtx.lineTo(cx + 3 * s, cy - 4 * s);
+  worldCtx.lineTo(cx - 1 * s, cy - 4 * s);
+  worldCtx.lineTo(cx + 4 * s, cy + 6 * s);
+  worldCtx.lineTo(cx - 1 * s, cy - 1 * s);
+  worldCtx.lineTo(cx + 2 * s, cy - 1 * s);
+  worldCtx.closePath();
+  worldCtx.fillStyle = `rgba(255, 220, 80, ${alpha})`;
+  worldCtx.fill();
+  worldCtx.strokeStyle = `rgba(200, 150, 40, ${alpha * 0.9})`;
+  worldCtx.lineWidth = Math.max(1, 1 * s);
+  worldCtx.stroke();
+}
+
+
 
 function drawRacer(player, index, count, now, delta) {
   const at = project(player.x || 0, laneOf(index, count));
@@ -818,16 +848,25 @@ function drawRacer(player, index, count, now, delta) {
   worldCtx.stroke();
   worldCtx.restore();
 
-  if (player.finished) {
+  // Boost charge indicator: a small lightning bolt next to a racer who is
+  // carrying a boost, so the display mirrors the server's tracked inventory.
+  const boostCharges = (player.powerups && player.powerups.boost) || 0;
+  if (boostCharges > 0) {
+    const bx = at.x + radius * 1.35;
+    const by = at.y + bob - air - radius * 0.3;
+    const bs = radius * 0.55;
     worldCtx.beginPath();
-    worldCtx.arc(at.x, at.y + bob - air, radius * 1.35, 0, Math.PI * 2);
-    worldCtx.strokeStyle = 'rgba(255, 215, 90, 0.9)';
-    worldCtx.lineWidth = Math.max(2.5, radius * 0.16);
-    worldCtx.stroke();
-    worldCtx.beginPath();
-    worldCtx.arc(at.x, at.y + bob - air, radius * 1.6, 0, Math.PI * 2);
-    worldCtx.strokeStyle = 'rgba(255, 215, 90, 0.35)';
-    worldCtx.lineWidth = Math.max(1.5, radius * 0.08);
+    worldCtx.moveTo(bx - bs * 0.4, by - bs * 1.3);
+    worldCtx.lineTo(bx + bs * 0.6, by - bs * 0.4);
+    worldCtx.lineTo(bx - bs * 0.2, by - bs * 0.4);
+    worldCtx.lineTo(bx + bs * 0.7, by + bs * 0.9);
+    worldCtx.lineTo(bx - bs * 0.3, by + bs * 0.1);
+    worldCtx.lineTo(bx + bs * 0.4, by + bs * 0.1);
+    worldCtx.closePath();
+    worldCtx.fillStyle = 'rgba(255, 220, 80, 0.95)';
+    worldCtx.fill();
+    worldCtx.strokeStyle = 'rgba(200, 150, 40, 0.9)';
+    worldCtx.lineWidth = Math.max(1, 0.8 * at.scale);
     worldCtx.stroke();
   }
 
@@ -841,6 +880,28 @@ function drawRacer(player, index, count, now, delta) {
     worldCtx.lineTo(at.x + radius * 0.5, at.y + radius * 1.7);
     worldCtx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
     worldCtx.lineWidth = Math.max(1.2, radius * 0.12);
+    worldCtx.stroke();
+  }
+
+  if (player.boosting) {
+    worldCtx.font = `700 ${Math.max(7, radius * 0.45)}px Inter, sans-serif`;
+    worldCtx.textAlign = 'center';
+    worldCtx.textBaseline = 'middle';
+    worldCtx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+    worldCtx.fillText('BOOST', at.x, at.y + bob - air);
+    worldCtx.textBaseline = 'alphabetic';
+  }
+
+  if (player.finished) {
+    worldCtx.beginPath();
+    worldCtx.arc(at.x, at.y + bob - air, radius * 1.35, 0, Math.PI * 2);
+    worldCtx.strokeStyle = 'rgba(255, 215, 90, 0.9)';
+    worldCtx.lineWidth = Math.max(2.5, radius * 0.16);
+    worldCtx.stroke();
+    worldCtx.beginPath();
+    worldCtx.arc(at.x, at.y + bob - air, radius * 1.6, 0, Math.PI * 2);
+    worldCtx.strokeStyle = 'rgba(255, 215, 90, 0.35)';
+    worldCtx.lineWidth = Math.max(1.5, radius * 0.08);
     worldCtx.stroke();
   }
 
@@ -934,11 +995,9 @@ function draw(world, now, dt) {
   camera.distance += (targetDistance - camera.distance) * Math.min(1, dt / CAMERA_EASE_MS);
   camera.x = (players.length ? travelled : 0) - camera.distance;
 
-  // Age jump dust puffs and spawn new ones on landing.
-  for (let i = jumpPuffs.length - 1; i >= 0; i -= 1) {
-    jumpPuffs[i].life -= dt;
-    if (jumpPuffs[i].life <= 0) jumpPuffs.splice(i, 1);
-  }
+  players.forEach((player) => {
+    prevBoosting.set(player.id, Boolean(player.boosting));
+  });
   // Finish bursts: a player who just crossed the line gets a burst at the gate.
   for (let i = finishBursts.length - 1; i >= 0; i -= 1) {
     finishBursts[i].life -= dt;
@@ -949,12 +1008,6 @@ function draw(world, now, dt) {
     const wasAir = (prevAir.get(player.id) || 0) > 0.5;
     if (wasAir && y <= 0.5) {
       landingUntil.set(player.id, now + 130);
-      jumpPuffs.push({
-        x: player.x || 0,
-        lateral: laneOf(index, players.length),
-        life: 420,
-        maxLife: 420,
-      });
     }
     prevAir.set(player.id, y);
     if (player.finished && !finishedPrev.has(player.id)) {
@@ -991,7 +1044,7 @@ function draw(world, now, dt) {
     const lateral = laneOf(laneIndex, obstacles.length || 1);
     (laneObstacles || []).forEach((ox) => drawObstacle(ox, lateral));
   });
-  drawPuffs();
+  drawPowerups();
   drawFinishBursts();
   drawStartLine();
   drawFinish(finishX);
@@ -1102,6 +1155,9 @@ async function connect() {
           hideWinner();
           if (Array.isArray(msg.obstacles)) {
             obstacles = msg.obstacles;
+          }
+          if (Array.isArray(msg.powerups)) {
+            powerups = msg.powerups;
           }
           if (msg.time_remaining !== undefined) {
             startGameTimer(msg.time_remaining);
