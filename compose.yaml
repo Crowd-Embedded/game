@@ -13,8 +13,8 @@ services:
     depends_on:
       - backend
 
-  # Two scripted players so a game starts on its own and perf can be read in the logs:
-  #   docker compose logs -f client1 client2
+  # Four scripted players so a game starts on its own and perf can be read in the logs:
+  #   docker compose logs -f client1 client2 client3 client4
   client1:
     build: ./client
     environment:
@@ -30,6 +30,26 @@ services:
     environment:
       BACKEND_URL: http://backend:8000/api/v1
       PLAYER_NAME: Dash
+      ACTION_INTERVAL_SECONDS: "0.10"
+      PLAYER_LOOP: "true"
+    depends_on:
+      - backend
+
+  client3:
+    build: ./client
+    environment:
+      BACKEND_URL: http://backend:8000/api/v1
+      PLAYER_NAME: Zip
+      ACTION_INTERVAL_SECONDS: "0.10"
+      PLAYER_LOOP: "true"
+    depends_on:
+      - backend
+
+  client4:
+    build: ./client
+    environment:
+      BACKEND_URL: http://backend:8000/api/v1
+      PLAYER_NAME: Nudge
       ACTION_INTERVAL_SECONDS: "0.10"
       PLAYER_LOOP: "true"
     depends_on:
