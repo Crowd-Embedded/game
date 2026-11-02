@@ -7,6 +7,7 @@ from game import messages
 from game.config import (
     COUNTDOWN_SECONDS,
     GAME_DURATION_SECONDS,
+    MAX_PLAYERS,
     MIN_PLAYERS_TO_START,
 )
 from game.gamestate import GameState
@@ -26,7 +27,7 @@ class StateBehavior:
 
     async def on_join(self, session: GameSession, client_id: str, name: str | None = None) -> GameState | None:
         session.register_player(client_id, name)
-        await session.broadcast(messages.player_joined(session.player_count))
+        await session.broadcast(messages.player_joined(session.player_count, session.players_state(), MAX_PLAYERS))
         return None
 
 

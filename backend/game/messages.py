@@ -10,8 +10,13 @@ if TYPE_CHECKING:
     from game.gamesession import GameSession
 
 
-def player_joined(player_count: int) -> dict:
-    return {"type": "player_joined", "player_count": player_count}
+def player_joined(player_count: int, players: list[dict] | None = None, max_players: int | None = None) -> dict:
+    msg = {"type": "player_joined", "player_count": player_count}
+    if players is not None:
+        msg["players"] = players
+    if max_players is not None:
+        msg["max_players"] = max_players
+    return msg
 
 
 def countdown_started(time_remaining: int) -> dict:

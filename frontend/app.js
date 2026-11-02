@@ -1093,7 +1093,20 @@ async function connect() {
           showWinner(msg.winner);
           break;
         case 'player_joined':
-          setPlayerCount(msg.player_count, 10);
+          setPlayerCount(msg.player_count, msg.max_players || 6);
+          if (Array.isArray(msg.players)) {
+            updateLegend(msg.players);
+            // Show joined players on the road right away, even before the race starts.
+            const pseudo = {
+              players: msg.players,
+              track_length: 1000,
+              finish_x: 1000,
+              catch_up_distance: 100,
+            };
+            latestWorld = pseudo;
+            snapshots.length = 0;
+            snapshots.push({ t: performance.now(), data: pseudo });
+          }
           if (currentState === 'waiting') {
             setState('waiting');
           }
