@@ -47,6 +47,7 @@ class GameSession:
         self._tick_task: asyncio.Task | None = None
         self.finished = asyncio.Event()
         self._winner: dict | None = None
+        self._finishing: bool = False
 
     @property
     def state(self) -> GameState:
@@ -178,7 +179,7 @@ class GameSession:
         report_at = now + 2.0
         iter_time = 0.0
         send_time = 0.0
-        while self._state == GameState.PLAYING and self._winner is None:
+        while self._state == GameState.PLAYING:
             delay = next_tick - self._clock()
             if delay > 0:
                 await asyncio.sleep(delay)
@@ -197,19 +198,19 @@ class GameSession:
                     messages.player_eliminated(player.participant_id, player.name)
                 )
             if self._winner is not None:
-                break
+                # Keep simulating so the winner can land past the finish line.
+                pass
             if dropped:
-                standing = [p for p in self._players if not p.eliminated]
+                standing = [p for p in self._players if not p.eliminated and not p.finished]
                 if len(standing) == 1:
                     # Everyone else fell out of frame: the last one standing wins.
                     last = standing[0]
-                    self._winner = {
-                        "id": last.participant_id,
-                        "name": last.name,
-                        "color": last.color,
-                    }
-                    asyncio.create_task(self._finish_race())
-                    break
+                    if self._winner is None:
+                        self._winner = {
+                            "id": last.participant_id,
+                            "name": last.name,
+                            "color": last.color,
+                        }
 
             if ticks % snapshot_every == 0:
                 snapshots_sent += 1
@@ -255,9 +256,22 @@ class GameSession:
 
     def _step_players(self, dt: float) -> list[Player]:
         for player in self._players:
-            if player.finished or player.eliminated:
+            if player.eliminated:
                 continue
-            # Everyone runs on their own; the only input is when to leave the ground.
+            if player.finished:
+                # Already crossed: keep running a little past the line and
+                # finish the jump, but accept no new jumps (apply_action guards).
+                speed = PLAYER_SPEED + (JUMP_BOOST if player.y > 0 else 0.0)
+                x, _ = actions.moved(
+                    player.position,
+                    actions.AUTO_RUN,
+                    dt,
+                    speed,
+                    START_X,
+                    FINISH_X + 60,
+                )
+                player.move((x, self._stepped_height(player, dt)))
+                continue
             speed = PLAYER_SPEED + (JUMP_BOOST if player.y > 0 else 0.0)
             x, _ = actions.moved(
                 player.position,
@@ -270,14 +284,24 @@ class GameSession:
             player.move((x, self._stepped_height(player, dt)))
             if player.x >= FINISH_X:
                 player.finished = True
-                self._winner = {
-                    "id": player.participant_id,
-                    "name": player.name,
-                    "color": player.color,
-                }
+                if self._winner is None:
+                    self._winner = {
+                        "id": player.participant_id,
+                        "name": player.name,
+                        "color": player.color,
+                    }
+        # End the race once the winner is on the ground past the finish line.
+        if self._winner is not None and not self._finishing:
+            winner = self._players.get(self._winner["id"])
+            if (
+                winner is not None
+                and winner.finished
+                and winner.y <= 0
+                and winner.x >= FINISH_X + 40
+            ):
+                self._finishing = True
                 asyncio.create_task(self._finish_race())
-                return []
-        return self._drop_laggards()
+        return [] if self._winner is not None else self._drop_laggards()
 
     def _stepped_height(self, player: Player, dt: float) -> float:
         """Integrate one tick of jump physics; 0 is the ground."""

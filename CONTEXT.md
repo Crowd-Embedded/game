@@ -5,7 +5,7 @@ A multiplayer 2D game where players join via code, play in timed sessions, and s
 ## Language
 
 **Game Session**:
-A single round of play: players join during WAITING, countdown starts when 2+ players have joined, PLAYING runs until a Player reaches the Finish Line, until only one Player remains un-eliminated, or until the time limit, then the result is shown before the session ends.
+A single round of play: players join during WAITING, countdown starts when 2+ players have joined, PLAYING runs until the winning Player has landed past the Finish Line, until only one Player remains un-eliminated, or until the time limit, then the result is shown before the session ends.
 _Avoid_: Game, round, match
 
 **Track**:

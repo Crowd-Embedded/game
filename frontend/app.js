@@ -53,6 +53,8 @@ let gameTimerInterval = null;
 let winner = null;
 let lastFrameTime = 0;
 const jumpPuffs = [];
+const finishBursts = [];
+const finishedPrev = new Set();
 const prevAir = new Map();
 const landingUntil = new Map();
 let currentCode = null;
@@ -210,6 +212,9 @@ function hideWinner() {
 function resetWorld() {
   snapshots.length = 0;
   latestWorld = null;
+  jumpPuffs.length = 0;
+  finishBursts.length = 0;
+  finishedPrev.clear();
   updateLegend([]);
 }
 
@@ -603,6 +608,40 @@ function drawHaze() {
 
 /* ---------------- racers ---------------- */
 
+function drawFinishBursts() {
+  finishBursts.forEach((burst) => {
+    const at = project(burst.x, burst.lateral);
+    if (at.depth < NEAR_DEPTH * 0.6) return;
+    const t = 1 - burst.life / burst.maxLife;
+    const ease = 1 - Math.pow(1 - t, 3);
+    const radius = (6 + ease * 90) * at.scale;
+    // Expanding ring on the road.
+    worldCtx.beginPath();
+    worldCtx.ellipse(at.x, at.y, radius, radius * 0.32, 0, 0, Math.PI * 2);
+    worldCtx.strokeStyle = `rgba(255, 255, 255, ${(1 - t) * 0.85})`;
+    worldCtx.lineWidth = Math.max(2, 3 * at.scale * (1 - t * 0.6));
+    worldCtx.stroke();
+    // Inner flash.
+    worldCtx.beginPath();
+    worldCtx.ellipse(at.x, at.y, radius * 0.55, radius * 0.18, 0, 0, Math.PI * 2);
+    worldCtx.fillStyle = `rgba(255, 236, 179, ${(1 - t) * 0.45})`;
+    worldCtx.fill();
+    // Sparkles.
+    const count = 12;
+    for (let i = 0; i < count; i += 1) {
+      const angle = (i / count) * Math.PI * 2 + t * 0.6;
+      const dist = (10 + t * 60) * at.scale;
+      const sx = at.x + Math.cos(angle) * dist;
+      const sy = at.y + Math.sin(angle) * dist * 0.32 - t * 6 * at.scale;
+      const r = Math.max(1, (2.2 - t * 1.6) * at.scale);
+      worldCtx.beginPath();
+      worldCtx.arc(sx, sy, r, 0, Math.PI * 2);
+      worldCtx.fillStyle = `rgba(255, 220, 120, ${(1 - t) * 0.9})`;
+      worldCtx.fill();
+    }
+  });
+}
+
 function drawPuffs() {
   jumpPuffs.forEach((puff) => {
     const at = project(puff.x, puff.lateral);
@@ -712,9 +751,14 @@ function drawRacer(player, index, count, now, delta) {
 
   if (player.finished) {
     worldCtx.beginPath();
-    worldCtx.arc(at.x, at.y + bob - air, radius * 1.2, 0, Math.PI * 2);
-    worldCtx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-    worldCtx.lineWidth = Math.max(2, radius * 0.1);
+    worldCtx.arc(at.x, at.y + bob - air, radius * 1.35, 0, Math.PI * 2);
+    worldCtx.strokeStyle = 'rgba(255, 215, 90, 0.9)';
+    worldCtx.lineWidth = Math.max(2.5, radius * 0.16);
+    worldCtx.stroke();
+    worldCtx.beginPath();
+    worldCtx.arc(at.x, at.y + bob - air, radius * 1.6, 0, Math.PI * 2);
+    worldCtx.strokeStyle = 'rgba(255, 215, 90, 0.35)';
+    worldCtx.lineWidth = Math.max(1.5, radius * 0.08);
     worldCtx.stroke();
   }
 
@@ -826,6 +870,11 @@ function draw(world, now, dt) {
     jumpPuffs[i].life -= dt;
     if (jumpPuffs[i].life <= 0) jumpPuffs.splice(i, 1);
   }
+  // Finish bursts: a player who just crossed the line gets a burst at the gate.
+  for (let i = finishBursts.length - 1; i >= 0; i -= 1) {
+    finishBursts[i].life -= dt;
+    if (finishBursts[i].life <= 0) finishBursts.splice(i, 1);
+  }
   players.forEach((player, index) => {
     const y = player.y || 0;
     const wasAir = (prevAir.get(player.id) || 0) > 0.5;
@@ -839,6 +888,16 @@ function draw(world, now, dt) {
       });
     }
     prevAir.set(player.id, y);
+    if (player.finished && !finishedPrev.has(player.id)) {
+      finishedPrev.add(player.id);
+      finishBursts.push({
+        x: player.x || 0,
+        lateral: laneOf(index, players.length),
+        life: 900,
+        maxLife: 900,
+        color: player.color,
+      });
+    }
   });
 
   const ahead = sampleWorld(now - INTERP_DELAY_MS - 70);
@@ -859,6 +918,7 @@ function draw(world, now, dt) {
   drawGround();
   drawRoad();
   drawPuffs();
+  drawFinishBursts();
   drawMarkings(players.length);
   drawStartLine();
   drawFinish(finishX);
