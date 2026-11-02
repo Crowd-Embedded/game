@@ -593,13 +593,41 @@ function drawFinish(finishX) {
     worldCtx.fillRect(base.x - width / 2, base.y - height, width, height * 0.18);
   }
 
-  const sign = project(finishX, 0);
-  const size = Math.max(8, Math.min(26, 12 * sign.scale));
-  worldCtx.font = `600 ${size}px Inter, sans-serif`;
-  worldCtx.textAlign = 'center';
-  worldCtx.fillStyle = `rgba(18, 24, 31, ${gateAlpha})`;
-  const signY = Math.max(size * 1.15, sign.y - 34 * sign.scale - size * 0.6);
-  worldCtx.fillText('FINISH', sign.x, signY);
+  // A checkered finish flag hanging between the two poles, in place of a text sign.
+  const leftBase = project(finishX, -(ROAD_HALF_WIDTH + 6));
+  const rightBase = project(finishX, ROAD_HALF_WIDTH + 6);
+  const poleHeight = 34 * ((leftBase.scale + rightBase.scale) / 2);
+  const flagTop = Math.min(leftBase.y, rightBase.y) - poleHeight * 0.95;
+  const flagHeight = poleHeight * 0.5;
+  const flagBottom = flagTop + flagHeight;
+  const flagLeft = Math.min(leftBase.x, rightBase.x);
+  const flagRight = Math.max(leftBase.x, rightBase.x);
+  const flagWidth = flagRight - flagLeft;
+  const cols = 10;
+  const rows = 4;
+  const cellW = flagWidth / cols;
+  const cellH = flagHeight / rows;
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      worldCtx.fillStyle =
+        (r + c) % 2 === 0
+          ? `rgba(244, 246, 248, ${gateAlpha})`
+          : `rgba(18, 24, 31, ${gateAlpha})`;
+      worldCtx.fillRect(flagLeft + c * cellW, flagTop + r * cellH, cellW + 0.5, cellH + 0.5);
+    }
+  }
+  // Flag outline and a thin halyard line up to each pole top.
+  worldCtx.strokeStyle = `rgba(18, 24, 31, ${gateAlpha * 0.85})`;
+  worldCtx.lineWidth = Math.max(1, 1.2 * ((leftBase.scale + rightBase.scale) / 2));
+  worldCtx.strokeRect(flagLeft, flagTop, flagWidth, flagHeight);
+  worldCtx.beginPath();
+  worldCtx.moveTo(leftBase.x, leftBase.y - poleHeight);
+  worldCtx.lineTo(flagLeft, flagTop);
+  worldCtx.moveTo(rightBase.x, rightBase.y - poleHeight);
+  worldCtx.lineTo(flagRight, flagTop);
+  worldCtx.strokeStyle = `rgba(244, 246, 248, ${gateAlpha * 0.7})`;
+  worldCtx.lineWidth = Math.max(1, 1 * ((leftBase.scale + rightBase.scale) / 2));
+  worldCtx.stroke();
 }
 
 function drawHaze() {
