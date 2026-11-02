@@ -35,6 +35,7 @@ const worldCtx = worldCanvas.getContext('2d');
 const legendDiv = document.getElementById('legend');
 const winnerBanner = document.getElementById('winner-banner');
 const stageHint = document.getElementById('stage-hint');
+const countdownDisplay = document.getElementById('countdown');
 
 const VIEW = { w: 800, h: 450 };
 const snapshots = [];
@@ -47,6 +48,7 @@ let focal = 700;
 let latestWorld = null;
 let currentState = 'disconnected';
 let countdownInterval = null;
+let countdownHideTimeout = null;
 let gameTimerInterval = null;
 let winner = null;
 let lastFrameTime = 0;
@@ -64,6 +66,10 @@ function setState(state) {
   if (gameTimerInterval && state !== 'playing') {
     clearInterval(gameTimerInterval);
     gameTimerInterval = null;
+  }
+  const wasCountdown = currentState === 'countdown';
+  if (state !== 'countdown' && !(state === 'playing' && wasCountdown)) {
+    hideCountdown();
   }
   currentState = state;
   stateDisplay.className = `state-pill ${state}`;
@@ -86,16 +92,43 @@ function setState(state) {
       break;
   }
   updateStageHint();
+
+  // The race begins the moment PLAYING arrives, so GO! belongs to that beat
+  // rather than to the countdown timer's last tick.
+  if (state === 'playing' && wasCountdown && !countdownDisplay.classList.contains('go')) {
+    showCountdown('GO!', true);
+  }
+}
+
+function showCountdown(label, isGo) {
+  if (!countdownDisplay) return;
+  if (countdownHideTimeout) {
+    clearTimeout(countdownHideTimeout);
+    countdownHideTimeout = null;
+  }
+  countdownDisplay.textContent = label;
+  countdownDisplay.classList.toggle('go', Boolean(isGo));
+  countdownDisplay.classList.remove('hidden');
+  // Restart the pop animation for every step, even when the label repeats.
+  countdownDisplay.style.animation = 'none';
+  void countdownDisplay.offsetWidth;
+  countdownDisplay.style.animation = '';
+}
+
+function hideCountdown() {
+  if (countdownHideTimeout) {
+    clearTimeout(countdownHideTimeout);
+    countdownHideTimeout = null;
+  }
+  if (!countdownDisplay) return;
+  countdownDisplay.classList.add('hidden');
+  countdownDisplay.classList.remove('go');
 }
 
 function updateStageHint() {
   if (!stageHint) return;
   if (currentState === 'waiting') {
     stageHint.textContent = 'Waiting for players to join';
-  } else if (currentState === 'countdown') {
-    stageHint.textContent = 'Get ready';
-  } else if (currentState === 'ended') {
-    stageHint.textContent = '';
   } else {
     stageHint.textContent = '';
   }
@@ -112,17 +145,21 @@ function setTimer(seconds, urgent) {
 }
 
 function startCountdown(seconds) {
-  let remaining = seconds;
+  let remaining = Math.max(1, Math.ceil(seconds));
   setTimer(remaining, false);
+  showCountdown(String(remaining));
   countdownInterval = setInterval(() => {
     remaining -= 1;
     if (remaining <= 0) {
       clearInterval(countdownInterval);
       countdownInterval = null;
       timerDisplay.classList.add('hidden');
+      showCountdown('GO!', true);
+      countdownHideTimeout = setTimeout(hideCountdown, 900);
       return;
     }
     setTimer(remaining, false);
+    showCountdown(String(remaining));
   }, 1000);
 }
 
