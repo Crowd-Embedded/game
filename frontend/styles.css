@@ -24,16 +24,16 @@ body {
   color: var(--ink);
   font-family: var(--font-text);
   min-height: 100svh;
-  padding: 20px 24px 32px;
+  padding: 12px 12px 12px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 #app {
-  max-width: 1500px;
+  max-width: 1900px;
+  width: 90%;
   margin: 0 auto;
-  width: 100%;
 }
 
 /* ---------- HUD ---------- */
@@ -187,12 +187,12 @@ body {
 
 .stage {
   position: relative;
-  width: 80vw;
-  max-width: 1400px;
-  height: 50vh;
+  width: 100%;
+  max-width: 1900px;
+  height: 70vh;
   min-width: 320px;
-  min-height: 260px;
-  max-height: 720px;
+  min-height: 300px;
+  max-height: 1000px;
   margin: 0 auto;
   border-radius: var(--radius);
   overflow: hidden;

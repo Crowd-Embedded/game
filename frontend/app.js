@@ -9,7 +9,7 @@ const INTERP_DELAY_MS = 100;
 // into screen pixels.
 const DEFAULT_CAMERA_DISTANCE = 100; // fallback until catch_up_distance arrives
 const HORIZON_FRACTION = 0.46; // where the ground meets the sky
-const NEAR_DEPTH = 48; // closest depth still on screen, at the bottom edge
+const NEAR_DEPTH = 24; // closest depth still on screen, at the bottom edge
 const DRAW_DISTANCE = 780; // depth at which the haze swallows the road
 const ROAD_HALF_WIDTH = 56;
 const LANE_SPAN = 10; // world px between lane centres
@@ -302,9 +302,13 @@ function horizon() {
 }
 
 // Chase-camera projection: a world x and a lateral offset become a screen
-// point plus the scale that keeps a sprite honest at that depth.
+// point plus the scale that keeps a sprite honest at that depth. Depths
+// nearer than NEAR_DEPTH are clamped to it, so a racer who is still alive
+// (within CAMERA_DISTANCE of the leader) can never fall off the bottom of
+// the screen — they just grow and sit on the bottom edge.
 function project(worldX, lateral) {
-  const depth = Math.max(1e-3, worldX - camera.x);
+  const trueDepth = worldX - camera.x;
+  const depth = Math.max(NEAR_DEPTH, trueDepth);
   const scale = (focal * camera.lens) / depth;
   const rise = (NEAR_DEPTH * camera.lens) / depth;
   return {
@@ -312,6 +316,7 @@ function project(worldX, lateral) {
     y: horizon() + (VIEW.h - horizon()) * rise,
     scale,
     depth,
+    trueDepth,
   };
 }
 
@@ -556,7 +561,7 @@ function drawStartLine() {
 
 function drawFinish(finishX) {
   const depth = finishX - camera.x;
-  if (depth < NEAR_DEPTH || depth > DRAW_DISTANCE) return;
+  if (depth < 0 || depth > DRAW_DISTANCE) return;
   const alpha = depthFade(depth);
 
   drawCheckeredBand(finishX, finishX + 10, 10, 2, alpha);
@@ -617,7 +622,11 @@ function drawPuffs() {
 function drawRacer(player, index, count, now, delta) {
   const at = project(player.x || 0, laneOf(index, count));
   const radius = PLAYER_RADIUS * at.scale;
+  if (player.eliminated) return;
   if (at.depth < NEAR_DEPTH * 0.6 || at.y - radius > VIEW.h * 1.08) return;
+
+  const behind = (at.trueDepth || 0) < NEAR_DEPTH;
+  if (behind) worldCtx.globalAlpha = 0.72;
 
   const speedFactor = Math.min(1, Math.abs(delta) / 5);
   const direction = delta >= 0 ? 1 : -1;
@@ -708,6 +717,21 @@ function drawRacer(player, index, count, now, delta) {
     worldCtx.lineWidth = Math.max(2, radius * 0.1);
     worldCtx.stroke();
   }
+
+  if (behind) {
+    // A small "right behind you" marker so an alive racer who has fallen
+    // to the bottom edge is still recognisable as being behind the lens.
+    worldCtx.beginPath();
+    worldCtx.moveTo(at.x, at.y + radius * 1.05);
+    worldCtx.lineTo(at.x - radius * 0.5, at.y + radius * 1.7);
+    worldCtx.moveTo(at.x, at.y + radius * 1.05);
+    worldCtx.lineTo(at.x + radius * 0.5, at.y + radius * 1.7);
+    worldCtx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+    worldCtx.lineWidth = Math.max(1.2, radius * 0.12);
+    worldCtx.stroke();
+  }
+
+  worldCtx.globalAlpha = 1;
 }
 
 function drawLeaderCrown(player, index, count) {
@@ -851,14 +875,19 @@ function draw(world, now, dt) {
   });
 
   if (players.length > 1) {
-    const leaderIndex = players.reduce(
-      (best, p, i) => ((p.x || 0) > (players[best].x || 0) ? i : best),
-      0
-    );
-    const leader = players[leaderIndex];
-    if ((leader.x || 0) > 4) {
-      drawLeaderCrown(leader, leaderIndex, players.length);
-      drawSpeedLines(leader, leaderIndex, players.length, speedFactor);
+    let leaderIndex = -1;
+    players.forEach((p, i) => {
+      if (p.eliminated) return;
+      if (leaderIndex === -1 || (p.x || 0) > (players[leaderIndex].x || 0)) {
+        leaderIndex = i;
+      }
+    });
+    if (leaderIndex >= 0) {
+      const leader = players[leaderIndex];
+      if ((leader.x || 0) > 4) {
+        drawLeaderCrown(leader, leaderIndex, players.length);
+        drawSpeedLines(leader, leaderIndex, players.length, speedFactor);
+      }
     }
   }
 }
