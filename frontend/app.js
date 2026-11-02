@@ -661,11 +661,11 @@ function drawObstacle(ox, lateral) {
   worldCtx.fillStyle = `rgba(20, 24, 28, ${alpha * 0.28})`;
   worldCtx.fillRect(at.x - w * 0.55, at.y - 2, w * 1.1, 1.5 * at.scale);
   // front frame only (outline), no fill, so the road stays visible
-  worldCtx.strokeStyle = `rgba(90, 55, 30, ${alpha * 0.95})`;
+  worldCtx.strokeStyle = `rgba(199, 157, 122, ${alpha * 0.95})`;
   worldCtx.lineWidth = Math.max(1, 1.4 * at.scale);
   worldCtx.strokeRect(at.x - w / 2, at.y - h, w, h);
   // plank lines
-  worldCtx.strokeStyle = `rgba(90, 55, 30, ${alpha * 0.6})`;
+  worldCtx.strokeStyle = `rgba(199, 157, 122, ${alpha * 0.6})`;
   worldCtx.lineWidth = Math.max(1, 1 * at.scale);
   for (let i = 1; i <= 2; i += 1) {
     const ly = at.y - h + (h / 3) * i;
