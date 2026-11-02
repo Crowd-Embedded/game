@@ -17,9 +17,11 @@
 
 ## Rendering
 
-- Side-view race on a `<canvas>`: scenic parallax background, a road, and round racer blobs
+- Chase camera on a `<canvas>`: the lens rides `CAMERA_DISTANCE` behind the leader and looks down a perspective highway, so the leader always sits at the same screen depth and racers behind it are nearer, lower and bigger
+- Everything is canvas 2-D — `project(worldX, lateral)` is the single projection seam (focal length, depth, sprite scale); there is no 3-D library and no build step
+- The sunny palette stays: sun, clouds, mountains, hills and trees above the horizon, grass and a fanned road below; the landscape scrolls with the camera, so it answers to actual progress
+- The Finish gate is a real world object drawn at `finish_x`: it fades in as it enters `DRAW_DISTANCE` and grows as the pack closes. There is no reveal trigger, no gate glide-in, and the scenery never freezes
+- Racers keep their array-index lane, spread across `LANE_SPAN`, and the first-place racer carries a crown; identity lives in the legend chips only — no name tags on the canvas, and an eliminated chip dims and reads "out"
+- `catch_up_distance` arrives in every `world` message and drives the camera, so the display never invents its own idea of where the kill line is
 - `world` messages arrive at 30 Hz; the render loop interpolates between the last two snapshots about 100 ms behind the newest one
-- Racers are drawn in vertical lanes so identical positions never hide a player; the name tag goes above the top lane and below the others
-- The finish line only appears once the leader is past ~55% of the track, and the background stops scrolling then; the gate itself glides in from the right edge (650 ms smoothstep) instead of popping into place
-- Parallax layers scroll with the leader's position, so the landscape answers to actual progress
 - Add `?debug=1` to log received message types and the frame rate to the console

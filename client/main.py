@@ -96,6 +96,12 @@ async def play_once(http: httpx.AsyncClient):
                         print("game started", flush=True)
                 elif msg["type"] == "game_started":
                     print("game_started event", flush=True)
+                elif msg["type"] == "player_eliminated":
+                    print(
+                        f"eliminated player_id={msg.get('player_id')} "
+                        f"name={msg.get('name')}",
+                        flush=True,
+                    )
                 elif msg["type"] == "game_ended":
                     winner = msg.get("winner") or {}
                     print(

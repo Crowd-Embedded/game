@@ -66,6 +66,7 @@ class Player(Participant):
         self.x = START_X
         self.y = START_Y
         self.finished = False
+        self.eliminated = False
         self.direction = 0.0
         self.last_input_at = 0.0
 

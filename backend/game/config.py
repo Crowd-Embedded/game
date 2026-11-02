@@ -9,6 +9,9 @@ FINISH_X = 500
 START_X = 0
 START_Y = 0
 PLAYER_SPEED = 120.0  # pixels per second while holding a direction
+# The chase camera trails the leader by this many pixels; anything it leaves
+# behind is eliminated from the race.
+CAMERA_DISTANCE = 100.0
 INPUT_TIMEOUT_SECONDS = 0.35  # a held key expires if no repeat arrives
 RESULT_SECONDS = 6  # how long the winner is shown before the next race
 TICK_RATE = 60  # Hz

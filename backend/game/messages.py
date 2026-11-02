@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from game.config import FINISH_X, MAX_PLAYERS, TRACK_LENGTH
+from game.config import CAMERA_DISTANCE, FINISH_X, MAX_PLAYERS, TRACK_LENGTH
 from game.gamestate import GameState
 
 if TYPE_CHECKING:
@@ -25,6 +25,10 @@ def game_started(time_remaining: int | None = None) -> dict:
     return msg
 
 
+def player_eliminated(player_id: str, name: str) -> dict:
+    return {"type": "player_eliminated", "player_id": player_id, "name": name}
+
+
 def game_ended(winner: dict | None = None) -> dict:
     msg = {"type": "game_ended"}
     if winner is not None:
@@ -40,6 +44,7 @@ def world(players: list[dict]) -> dict:
         "type": "world",
         "track_length": TRACK_LENGTH,
         "finish_x": FINISH_X,
+        "catch_up_distance": CAMERA_DISTANCE,
         "players": players,
         "t": time.time(),
     }

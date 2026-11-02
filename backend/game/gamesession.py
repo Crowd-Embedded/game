@@ -6,6 +6,7 @@ from fastapi import WebSocket
 
 from game import actions, messages
 from game.config import (
+    CAMERA_DISTANCE,
     COUNTDOWN_SECONDS,
     FINISH_X,
     GAME_DURATION_SECONDS,
@@ -138,6 +139,7 @@ class GameSession:
                     "y": player.y,
                     "color": player.color,
                     "finished": getattr(player, "finished", False),
+                    "eliminated": getattr(player, "eliminated", False),
                 }
             )
         return result
@@ -149,7 +151,7 @@ class GameSession:
         if self._winner is not None:
             return
         player = self._players.get(client_id)
-        if player is None or player.finished:
+        if player is None or player.finished or player.eliminated:
             return
         direction = actions.direction_for(action)
         if direction is None:
@@ -187,9 +189,25 @@ class GameSession:
                 next_tick = now + TICK_INTERVAL
             ticks += 1
 
-            self._step_players(dt, now)
+            dropped = self._step_players(dt, now)
+            for player in dropped:
+                await self.broadcast(
+                    messages.player_eliminated(player.participant_id, player.name)
+                )
             if self._winner is not None:
                 break
+            if dropped:
+                standing = [p for p in self._players if not p.eliminated]
+                if len(standing) == 1:
+                    # Everyone else fell out of frame: the last one standing wins.
+                    last = standing[0]
+                    self._winner = {
+                        "id": last.participant_id,
+                        "name": last.name,
+                        "color": last.color,
+                    }
+                    asyncio.create_task(self._finish_race())
+                    break
 
             if ticks % snapshot_every == 0:
                 snapshots_sent += 1
@@ -233,9 +251,9 @@ class GameSession:
                 flush=True,
             )
 
-    def _step_players(self, dt: float, now: float):
+    def _step_players(self, dt: float, now: float) -> list[Player]:
         for player in self._players:
-            if player.finished:
+            if player.finished or player.eliminated:
                 continue
             if player.direction and now - player.last_input_at > INPUT_TIMEOUT_SECONDS:
                 player.direction = 0.0
@@ -259,7 +277,24 @@ class GameSession:
                     "color": player.color,
                 }
                 asyncio.create_task(self._finish_race())
-                break
+                return []
+        return self._drop_laggards()
+
+    def _drop_laggards(self) -> list[Player]:
+        """Eliminate everyone the chase camera has left behind."""
+        standing = [
+            player
+            for player in self._players
+            if not player.eliminated and not player.finished
+        ]
+        if len(standing) <= 1:
+            return []
+        cut = max(player.x for player in standing) - CAMERA_DISTANCE
+        dropped = [player for player in standing if player.x < cut]
+        for player in dropped:
+            player.eliminated = True
+            player.direction = 0.0
+        return dropped
 
     async def _finish_race(self):
         """Send the final world frame plus the result, then end the session."""

@@ -46,6 +46,6 @@ python main.py
 
 ## How it works
 
-A Game Session cycles through WAITING → COUNTDOWN → PLAYING → ENDED. Players join with a 4-letter Game Code fetched via HTTP and race left-to-right along a Track; the first Player to reach the Finish Line wins, capped by the time limit. The winner is shown for a few seconds, then a new code is generated for the next session. Spectators keep one socket and follow the rotation, so the display never has to reconnect.
+A Game Session cycles through WAITING → COUNTDOWN → PLAYING → ENDED. Players join with a 4-letter Game Code fetched via HTTP and race left-to-right along a Track; anyone more than the camera distance behind the leader is eliminated. A race ends when a Player reaches the Finish Line, when only one Player is left, or at the time limit. The winner is shown for a few seconds, then a new code is generated for the next session. Spectators keep one socket and follow the rotation, so the display never has to reconnect.
 
 See [`CONTEXT.md`](CONTEXT.md) for the domain glossary.

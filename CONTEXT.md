@@ -5,16 +5,20 @@ A multiplayer 2D game where players join via code, play in timed sessions, and s
 ## Language
 
 **Game Session**:
-A single round of play: players join during WAITING, countdown starts when 2+ players have joined, PLAYING runs until a Player reaches the Finish Line (capped at the time limit), then the result is shown before the session ends.
+A single round of play: players join during WAITING, countdown starts when 2+ players have joined, PLAYING runs until a Player reaches the Finish Line, until only one Player remains un-eliminated, or until the time limit, then the result is shown before the session ends.
 _Avoid_: Game, round, match
 
 **Track**:
-The horizontal course Players race along, measured in pixels from the start line to the Finish Line. Players only move left and right.
+The horizontal course Players race along, measured in pixels from the start line to the Finish Line. Players only move left and right. A Player's `y` axis is always 0 today; it is reserved for jumping later.
 _Avoid_: Course, map, level, field
 
 **Finish Line**:
 The position on the Track where a race ends; the first Player to reach it wins.
 _Avoid_: Goal, end, goal line
+
+**Eliminated**:
+A Player who has fallen more than the chase-camera distance behind the leader. Eliminated Players freeze in place, can no longer win, and are no longer drawn, because the camera has left them behind.
+_Avoid_: Out, dead, disqualified, DNF
 
 **Player**:
 A connected participant in a Game Session, identified by a client_id and linked to a WebSocket for receiving game events.

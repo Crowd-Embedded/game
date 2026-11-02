@@ -19,5 +19,6 @@ The backend must be running on `localhost:8000`.
 - Current game code (4 uppercase letters)
 - Number of connected players
 - Game state: waiting, countdown, playing, ended
-- Live 10x10 grid with players as colored dots during play
+- Live race down a perspective highway: the camera chases the leader, the pack streams towards the viewer on separate lanes
+- Raced-out Players are dropped from the road and marked `out` in the legend
 - On game end: the new game code so players can join the next round

@@ -144,6 +144,28 @@ body {
   background: #06251a;
 }
 
+.chip.out {
+  background: #10161d;
+  color: var(--ink-dim);
+}
+
+.chip.out .chip-dot {
+  filter: grayscale(0.85);
+  opacity: 0.7;
+}
+
+.chip.out .chip-rank {
+  opacity: 0.5;
+}
+
+.chip-tag {
+  font-family: var(--font-display);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+
 .chip-winner {
   color: var(--accent);
 }

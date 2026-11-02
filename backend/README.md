@@ -23,12 +23,17 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 | `/api/v1/code` | GET | Returns current join code |
 | `/api/v1/player/join` | POST | Join a game with `{"code": "..."}` |
 | `/api/v1/spectator/join` | POST | Register as a spectator, returns `spectator_id` |
-| `/api/v1/player/ws/{client_id}` | WS | Player events; accepts `action` messages to move on the grid |
+| `/api/v1/player/ws/{client_id}` | WS | Player events; accepts `action` messages to move along the Track |
 | `/api/v1/spectator/ws/{spectator_id}` | WS | WebSocket for receiving spectator game events |
 
-Players spawn at a random cell on a 10x10 grid. During play they send
-`{"type": "action", "action": "left" | "right" | "up" | "down"}` and the server
-broadcasts a `world` snapshot of all player positions after each move.
+Players start at the start line and race right along a 500 px Track. During play they
+send `{"type": "action", "action": "left" | "right" | "stop" | "noop"}` and the server
+integrates movement, broadcasting a `world` snapshot of all positions at 30 Hz.
+
+A chase camera trails the leader by `CAMERA_DISTANCE`; any Player further behind than
+that is eliminated (`player_eliminated`, plus an `eliminated` flag in every `world`
+snapshot). A race ends at the Finish Line, when a single Player is left, or at the time
+limit.
 
 ## Lint & Format
 
